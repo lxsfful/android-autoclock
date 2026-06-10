@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    This sample restricts accessibility window-content reads to a configurable placeholder target package.
+    Replace com.example.targetapp and the success text in source before using it for your own permitted personal automation.
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:canPerformGestures="true"
+    android:canRetrieveWindowContent="true"
+    android:description="@string/accessibility_service_description"
+    android:packageNames="com.example.targetapp"
+    android:notificationTimeout="100"/>

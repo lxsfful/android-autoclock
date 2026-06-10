@@ -1,0 +1,32 @@
+# Android / Gradle generated files
+.gradle/
+build/
+app/build/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Local machine files
+local.properties
+.idea/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Secrets and private material
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+service-account.json
+secrets/
+.secrets/
+sessions/
+
+# Source maps
+*.map

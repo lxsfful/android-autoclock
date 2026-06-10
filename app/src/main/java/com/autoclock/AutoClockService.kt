@@ -1,0 +1,376 @@
+package com.autoclock
+
+import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.GestureDescription
+import android.graphics.Path
+import android.os.Handler
+import android.os.Looper
+import android.os.PowerManager
+import android.util.Log
+import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
+
+class AutoClockService : AccessibilityService() {
+
+    companion object {
+        private const val TAG = "AutoClockService"
+        private const val TAP_DURATION_MS = 80L
+        private const val HOME_BEFORE_FIRST_TAP_DELAY_MS = 1_000L
+        private const val HOME_SETTLE_DELAY_MS = 1_000L
+        private const val SUCCESS_POPUP_TIMEOUT_MS = 8_000L
+        private const val SUCCESS_POLL_INTERVAL_MS = 500L
+        private const val SEQUENCE_WAKELOCK_SLACK_MS = 10_000L
+        private const val MIN_WAIT_SECONDS = 1
+        private const val MAX_WAIT_SECONDS = 60
+        private const val MAX_COLLECTED_NODE_TEXTS = 80
+
+        /** AlarmReceiver 通过此静态引用调用任务序列 */
+        var instance: AutoClockService? = null
+    }
+
+    private val handler = Handler(Looper.getMainLooper())
+    private var wakeLock: PowerManager.WakeLock? = null
+    private var isSequenceRunning = false
+    private var isWaitingForSuccessPopup = false
+    private var hasTerminalResult = false
+    private var currentIsClockIn = true
+    private var successPopupTimeoutRunnable: Runnable? = null
+    private var successPopupPollRunnable: Runnable? = null
+    private var lastWindowPackage: String? = null
+
+    override fun onServiceConnected() {
+        instance = this
+        Log.i(TAG, "无障碍服务已连接")
+    }
+
+    override fun onDestroy() {
+        instance = null
+        handler.removeCallbacksAndMessages(null)
+        releaseWakeLock()
+        super.onDestroy()
+    }
+
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        lastWindowPackage = event?.packageName?.toString()
+        if (!isWaitingForSuccessPopup || hasTerminalResult || event == null) return
+        if (lastWindowPackage != ClockSuccessDetector.CLOCK_APP_PACKAGE) return
+
+        val snapshot = event.toClockSnapshot(emptyList())
+        if (ClockSuccessDetector.isSuccessPopup(snapshot)) {
+            Log.i(TAG, "检测到目标 App操作成功弹窗")
+            completeSequence(success = true, reason = "检测到目标 App操作成功弹窗")
+        }
+    }
+
+    override fun onInterrupt() {}
+
+    /**
+     * 任务序列：
+     *  1. 唤醒屏幕并回到桌面
+     *  2. 点击桌面任务快捷方式
+     *  3. 等待 waitSeconds 秒
+     *  4. 点击任务按钮
+     *  5. 等待目标 App「操作成功」弹窗
+     *  6. 无论成功或失败，最后都回桌面并点击任务后快捷方式
+     */
+    fun performClockSequence(isClockIn: Boolean) {
+        if (isSequenceRunning) {
+            Log.w(TAG, "已有任务序列正在执行，忽略本次触发")
+            return
+        }
+
+        Log.i(TAG, "开始任务序列: ${if (isClockIn) "开始" else "结束"}")
+        isSequenceRunning = true
+        currentIsClockIn = isClockIn
+        isWaitingForSuccessPopup = false
+        hasTerminalResult = false
+        successPopupTimeoutRunnable = null
+        successPopupPollRunnable = null
+        lastWindowPackage = null
+
+        val prefs = Prefs(this)
+        val waitSeconds = prefs.waitSeconds.coerceIn(MIN_WAIT_SECONDS, MAX_WAIT_SECONDS)
+        acquireWakeLock(sequenceWakeLockTimeoutMs(waitSeconds))
+        val metrics = resources.displayMetrics
+        val screenW = metrics.widthPixels.toFloat()
+        val screenH = metrics.heightPixels.toFloat()
+
+        // 先回到桌面，确保第一次点击命中桌面上的任务快捷方式
+        returnToHomeScreen()
+        handler.postDelayed({
+            val x1 = tapCoordinate(screenW, prefs.openAppX)
+            val y1 = tapCoordinate(screenH, prefs.openAppY)
+            performTap(
+                x1,
+                y1,
+                onCompleted = {
+                    Log.d(TAG, "点击 #1 (打开App): (${x1.toInt()}, ${y1.toInt()})")
+                    scheduleClockButtonTap(screenW, screenH, prefs, waitSeconds)
+                },
+                onCancelled = { completeSequence(success = false, reason = "打开任务 App 点击失败") }
+            )
+        }, HOME_BEFORE_FIRST_TAP_DELAY_MS)
+    }
+
+    private fun sequenceWakeLockTimeoutMs(waitSeconds: Int): Long {
+        return HOME_BEFORE_FIRST_TAP_DELAY_MS +
+            waitSeconds * 1000L +
+            SUCCESS_POPUP_TIMEOUT_MS +
+            HOME_SETTLE_DELAY_MS +
+            SEQUENCE_WAKELOCK_SLACK_MS
+    }
+
+    private fun scheduleClockButtonTap(screenW: Float, screenH: Float, prefs: Prefs, waitSeconds: Int) {
+        val delayMs = waitSeconds * 1000L
+        handler.postDelayed({
+            if (!isExpectedClockAppOpen()) {
+                val pkg = lastWindowPackage ?: "未知"
+                Log.w(TAG, "目标 App尚未处于前台（当前: $pkg），取消第二次点击")
+                completeSequence(success = false, reason = "任务 App 未在前台（当前: $pkg）")
+                return@postDelayed
+            }
+
+            val x2 = tapCoordinate(screenW, prefs.clockBtnX)
+            val y2 = tapCoordinate(screenH, prefs.clockBtnY)
+            performTap(
+                x2,
+                y2,
+                onCompleted = {
+                    Log.d(TAG, "点击 #2 (任务按钮): (${x2.toInt()}, ${y2.toInt()})")
+                    waitForSuccessPopup()
+                },
+                onCancelled = { completeSequence(success = false, reason = "任务按钮点击失败") }
+            )
+        }, delayMs)
+    }
+
+    private fun waitForSuccessPopup() {
+        isWaitingForSuccessPopup = true
+        val poll = object : Runnable {
+            override fun run() {
+                if (!isWaitingForSuccessPopup || hasTerminalResult) return
+                if (detectSuccessFromActiveWindow()) {
+                    Log.i(TAG, "轮询检测到目标 App操作成功提示")
+                    completeSequence(success = true, reason = "检测到目标 App操作成功提示")
+                    return
+                }
+                handler.postDelayed(this, SUCCESS_POLL_INTERVAL_MS)
+            }
+        }
+        val timeout = Runnable {
+            completeSequence(success = false, reason = "等待目标 App操作成功提示超时")
+        }
+        successPopupPollRunnable = poll
+        successPopupTimeoutRunnable = timeout
+        handler.post(poll)
+        handler.postDelayed(timeout, SUCCESS_POPUP_TIMEOUT_MS)
+    }
+
+    private fun detectSuccessFromActiveWindow(): Boolean {
+        val snapshot = ClockAccessibilitySnapshot(
+            packageName = ClockSuccessDetector.CLOCK_APP_PACKAGE,
+            className = null,
+            texts = collectActiveWindowTexts(),
+            contentDescription = null,
+            eventType = 0
+        )
+        return ClockSuccessDetector.isSuccessPopup(snapshot)
+    }
+
+    private fun completeSequence(success: Boolean, reason: String) {
+        if (hasTerminalResult) return
+        hasTerminalResult = true
+        isWaitingForSuccessPopup = false
+        successPopupTimeoutRunnable?.let { handler.removeCallbacks(it) }
+        successPopupPollRunnable?.let { handler.removeCallbacks(it) }
+        successPopupTimeoutRunnable = null
+        successPopupPollRunnable = null
+
+        if (success) {
+            EmailSender.sendSuccessEmail(this)
+        } else {
+            EmailSender.sendFailureEmail(this, reason)
+        }
+        recordClockAttempt(success, reason)
+
+        // 不管成功或失败，最后都回桌面并点击任务后快捷方式（后续 App等）
+        returnToHomeScreen()
+        scheduleAfterClockTap()
+    }
+
+    private fun recordClockAttempt(success: Boolean, reason: String) {
+        val appContext = applicationContext
+        val record = ClockRecord(
+            timestampMs = System.currentTimeMillis(),
+            isClockIn = currentIsClockIn,
+            success = success,
+            reason = if (success) "" else reason
+        )
+        Thread {
+            val prefs = Prefs(appContext)
+            prefs.clockHistoryJson = ClockHistory.append(prefs.clockHistoryJson, record)
+        }.start()
+    }
+
+    private fun scheduleAfterClockTap() {
+        handler.postDelayed({
+            val prefs = Prefs(this)
+            val metrics = resources.displayMetrics
+            val screenW = metrics.widthPixels.toFloat()
+            val screenH = metrics.heightPixels.toFloat()
+            val x3 = tapCoordinate(screenW, prefs.afterClockX)
+            val y3 = tapCoordinate(screenH, prefs.afterClockY)
+            performTap(
+                x3,
+                y3,
+                onCompleted = {
+                    Log.d(TAG, "点击 #3 (任务后快捷方式): (${x3.toInt()}, ${y3.toInt()})")
+                    releaseWakeLock()
+                },
+                onCancelled = { releaseWakeLock() }
+            )
+        }, HOME_SETTLE_DELAY_MS)
+    }
+
+    private fun isExpectedClockAppOpen(): Boolean {
+        val currentPackage = currentActiveWindowPackage()
+        if (currentPackage == null) {
+            Log.w(TAG, "无法确认当前前台 App，取消第二次点击")
+            return false
+        }
+        return currentPackage == ClockSuccessDetector.CLOCK_APP_PACKAGE
+    }
+
+    /** 只读取当前窗口包名，用于点击前确认；不要在这里读取非目标 App 的节点文本。 */
+    @Suppress("DEPRECATION")
+    private fun currentActiveWindowPackage(): String? {
+        val root = rootInActiveWindow ?: return null
+        return try {
+            root.packageName?.toString()
+        } finally {
+            root.recycle()
+        }
+    }
+
+    private fun tapCoordinate(screenSize: Float, ratio: Float): Float {
+        if (screenSize <= 1f || ratio.isNaN() || ratio.isInfinite()) {
+            return 0f
+        }
+
+        val rawCoordinate = screenSize * ratio
+        if (rawCoordinate.isNaN() || rawCoordinate.isInfinite()) {
+            return 0f
+        }
+
+        return rawCoordinate.coerceIn(0f, screenSize - 1f)
+    }
+
+    private fun performTap(
+        x: Float,
+        y: Float,
+        onCompleted: () -> Unit = {},
+        onCancelled: () -> Unit = {}
+    ) {
+        val path = Path().apply { moveTo(x, y) }
+        val stroke = GestureDescription.StrokeDescription(path, 0L, TAP_DURATION_MS)
+        val gesture = GestureDescription.Builder().addStroke(stroke).build()
+        val isDispatched = dispatchGesture(gesture, object : GestureResultCallback() {
+            override fun onCompleted(gestureDescription: GestureDescription?) {
+                Log.d(TAG, "手势完成: ($x, $y)")
+                onCompleted()
+            }
+            override fun onCancelled(gestureDescription: GestureDescription?) {
+                Log.w(TAG, "手势取消: ($x, $y)")
+                onCancelled()
+            }
+        }, null)
+        if (!isDispatched) {
+            Log.w(TAG, "手势派发失败: ($x, $y)")
+            onCancelled()
+        }
+    }
+
+    private fun returnToHomeScreen() {
+        val isReturnedHome = performGlobalAction(GLOBAL_ACTION_HOME)
+        if (isReturnedHome) {
+            Log.i(TAG, "已执行返回桌面动作")
+        } else {
+            Log.w(TAG, "返回桌面失败")
+        }
+    }
+
+    private fun AccessibilityEvent.toClockSnapshot(extraTexts: List<String>): ClockAccessibilitySnapshot {
+        val eventTexts = text.mapNotNull { value ->
+            value?.toString()?.trim()?.takeIf { it.isNotBlank() }
+        }
+        return ClockAccessibilitySnapshot(
+            packageName = packageName?.toString(),
+            className = className?.toString(),
+            texts = (eventTexts + extraTexts).distinct(),
+            contentDescription = contentDescription?.toString(),
+            eventType = eventType
+        )
+    }
+
+    /**
+     * 读取当前窗口文本前必须再次校验包名，避免 canRetrieveWindowContent 读取非目标 App内容。
+     */
+    @Suppress("DEPRECATION")
+    private fun collectActiveWindowTexts(): List<String> {
+        val root = rootInActiveWindow ?: return emptyList()
+        return try {
+            if (root.packageName?.toString() != ClockSuccessDetector.CLOCK_APP_PACKAGE) {
+                emptyList()
+            } else {
+                val texts = mutableListOf<String>()
+                collectNodeTexts(root, texts)
+                texts
+            }
+        } finally {
+            root.recycle()
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun collectNodeTexts(node: AccessibilityNodeInfo, texts: MutableList<String>) {
+        if (texts.size >= MAX_COLLECTED_NODE_TEXTS) return
+
+        node.text?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let { texts.add(it) }
+        node.contentDescription?.toString()?.trim()?.takeIf { it.isNotBlank() }?.let { texts.add(it) }
+
+        for (index in 0 until node.childCount) {
+            if (texts.size >= MAX_COLLECTED_NODE_TEXTS) return
+            val child = node.getChild(index) ?: continue
+            try {
+                collectNodeTexts(child, texts)
+            } finally {
+                child.recycle()
+            }
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun acquireWakeLock(timeoutMs: Long) {
+        val pm = getSystemService(POWER_SERVICE) as PowerManager
+        // SCREEN_BRIGHT_WAKE_LOCK + ACQUIRE_CAUSES_WAKEUP：在手机息屏时也能点亮屏幕
+        // 虽已废弃，但从后台服务唤醒屏幕目前仍是最可靠的方式
+        wakeLock = pm.newWakeLock(
+            PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+            "AutoClock:ScreenWake"
+        )
+        wakeLock?.acquire(timeoutMs)
+    }
+
+    private fun releaseWakeLock() {
+        if (wakeLock?.isHeld == true) {
+            wakeLock?.release()
+        }
+        wakeLock = null
+        isSequenceRunning = false
+        currentIsClockIn = true
+        isWaitingForSuccessPopup = false
+        hasTerminalResult = false
+        successPopupTimeoutRunnable = null
+        successPopupPollRunnable = null
+    }
+}
