@@ -1,7 +1,7 @@
 package com.autoclock
 
 object ClockSuccessDetector {
-    const val CLOCK_APP_PACKAGE = "com.example.targetapp"
+    const val CLOCK_APP_PACKAGE = "com.kdweibo.client"
 
     private const val SUCCESS_TEXT = "操作成功"
 

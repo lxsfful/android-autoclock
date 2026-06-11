@@ -2,6 +2,7 @@ package com.autoclock
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.content.Intent
 import android.graphics.Path
 import android.os.Handler
 import android.os.Looper
@@ -23,6 +24,14 @@ class AutoClockService : AccessibilityService() {
         private const val MIN_WAIT_SECONDS = 1
         private const val MAX_WAIT_SECONDS = 60
         private const val MAX_COLLECTED_NODE_TEXTS = 80
+        
+        // 打卡完成后额外操作的延迟
+        private const val POST_CLOCK_DELAY_MS = 3_000L
+        
+        // 目标应用包名（云之家）
+        private const val TARGET_APP_PACKAGE = "com.kdweibo.client"
+        // 向日葵包名
+        private const val SUNFLOWER_PACKAGE = "com.oray.sunlogin.service"
 
         /** AlarmReceiver 通过此静态引用调用任务序列 */
         var instance: AutoClockService? = null
@@ -53,7 +62,7 @@ class AutoClockService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         lastWindowPackage = event?.packageName?.toString()
         if (!isWaitingForSuccessPopup || hasTerminalResult || event == null) return
-        if (lastWindowPackage != ClockSuccessDetector.CLOCK_APP_PACKAGE) return
+        if (lastWindowPackage != TARGET_APP_PACKAGE) return
 
         val snapshot = event.toClockSnapshot(emptyList())
         if (ClockSuccessDetector.isSuccessPopup(snapshot)) {
@@ -168,7 +177,7 @@ class AutoClockService : AccessibilityService() {
 
     private fun detectSuccessFromActiveWindow(): Boolean {
         val snapshot = ClockAccessibilitySnapshot(
-            packageName = ClockSuccessDetector.CLOCK_APP_PACKAGE,
+            packageName = TARGET_APP_PACKAGE,
             className = null,
             texts = collectActiveWindowTexts(),
             contentDescription = null,
@@ -187,25 +196,59 @@ class AutoClockService : AccessibilityService() {
         successPopupPollRunnable = null
 
         if (success) {
-            handler.postDelayed({ killTargetApp() }, 2_000L)
             EmailSender.sendSuccessEmail(this)
         } else {
             EmailSender.sendFailureEmail(this, reason)
         }
         recordClockAttempt(success, reason)
 
-        // 不管成功或失败，最后都回桌面并点击任务后快捷方式（后续 App等）
+        // 打卡完成后，延迟执行后续操作
+        handler.postDelayed({ postClockSequence() }, POST_CLOCK_DELAY_MS)
+    }
+    
+    /**
+     * 打卡完成后的操作序列：
+     * 1. 返回桌面
+     * 2. 杀死云之家进程
+     * 3. 打开向日葵
+     */
+    private fun postClockSequence() {
+        // 1. 返回桌面
         returnToHomeScreen()
-        scheduleAfterClockTap()
+        
+        // 2. 延迟杀死云之家进程
+        handler.postDelayed({ 
+            killTargetApp()
+            
+            // 3. 延迟打开向日葵
+            handler.postDelayed({ 
+                openSunflower()
+                releaseWakeLock()
+            }, 500L)
+        }, 500L)
     }
 
     private fun killTargetApp() {
-        val pkg = ClockSuccessDetector.CLOCK_APP_PACKAGE
         try {
-            Runtime.getRuntime().exec(arrayOf("am", "force-stop", pkg))
-            Log.i(TAG, "已结束目标 App 进程: $pkg")
+            Runtime.getRuntime().exec(arrayOf("am", "force-stop", TARGET_APP_PACKAGE))
+            Log.i(TAG, "已结束云之家进程: $TARGET_APP_PACKAGE")
         } catch (e: Exception) {
-            Log.w(TAG, "结束目标 App 进程失败: $pkg", e)
+            Log.w(TAG, "结束云之家进程失败: $TARGET_APP_PACKAGE", e)
+        }
+    }
+    
+    private fun openSunflower() {
+        try {
+            val intent = packageManager.getLaunchIntentForPackage(SUNFLOWER_PACKAGE)
+            if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(intent)
+                Log.i(TAG, "已打开向日葵: $SUNFLOWER_PACKAGE")
+            } else {
+                Log.w(TAG, "未找到向日葵应用: $SUNFLOWER_PACKAGE")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "打开向日葵失败: $SUNFLOWER_PACKAGE", e)
         }
     }
 
@@ -223,25 +266,7 @@ class AutoClockService : AccessibilityService() {
         }.start()
     }
 
-    private fun scheduleAfterClockTap() {
-        handler.postDelayed({
-            val prefs = Prefs(this)
-            val metrics = resources.displayMetrics
-            val screenW = metrics.widthPixels.toFloat()
-            val screenH = metrics.heightPixels.toFloat()
-            val x3 = tapCoordinate(screenW, prefs.afterClockX)
-            val y3 = tapCoordinate(screenH, prefs.afterClockY)
-            performTap(
-                x3,
-                y3,
-                onCompleted = {
-                    Log.d(TAG, "点击 #3 (任务后快捷方式) 已完成")
-                    releaseWakeLock()
-                },
-                onCancelled = { releaseWakeLock() }
-            )
-        }, HOME_SETTLE_DELAY_MS)
-    }
+
 
     private fun isExpectedClockAppOpen(): Boolean {
         val currentPackage = currentActiveWindowPackage()
@@ -249,7 +274,7 @@ class AutoClockService : AccessibilityService() {
             Log.w(TAG, "无法确认当前前台 App，取消第二次点击")
             return false
         }
-        return currentPackage == ClockSuccessDetector.CLOCK_APP_PACKAGE
+        return currentPackage == TARGET_APP_PACKAGE
     }
 
     /** 只读取当前窗口包名，用于点击前确认；不要在这里读取非目标 App 的节点文本。 */
@@ -330,7 +355,7 @@ class AutoClockService : AccessibilityService() {
     private fun collectActiveWindowTexts(): List<String> {
         val root = rootInActiveWindow ?: return emptyList()
         return try {
-            if (root.packageName?.toString() != ClockSuccessDetector.CLOCK_APP_PACKAGE) {
+            if (root.packageName?.toString() != TARGET_APP_PACKAGE) {
                 emptyList()
             } else {
                 val texts = mutableListOf<String>()
