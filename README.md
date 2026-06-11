@@ -16,12 +16,14 @@ Use this project only on devices, accounts, and apps where you have clear permis
 - Optional SMTP email notifications for success, failure, and test messages.
 - Android Keystore-backed encryption for stored SMTP app passwords where available.
 - `FLAG_SECURE` on the main configuration screen to reduce screenshot/screen-recording exposure.
-- Unit tests for scheduling windows, formatting, coordinate mapping, history, email content, and success detection.
+- Built-in usage guide with step-by-step instructions.
+- 2-second delay after success before killing target app, preventing residual popups.
+- Fresh, elegant blue-green UI theme.
 
 ## Quick start
 
 ```bash
-git clone https://github.com/YOUR_ORG/android-autoclock.git
+git clone https://github.com/lxsfful/android-autoclock.git
 cd android-autoclock
 ./setup.sh
 ```
@@ -43,7 +45,7 @@ If you do not use `setup.sh`, install the prerequisites below and create `local.
 - A local Android SDK path in `local.properties`:
 
 ```properties
-sdk.dir=/path/to/Android/Sdk
+sdk.dir=C:/Users/yourname/AppData/Local/Android/Sdk
 ```
 
 ## Configuration placeholders
@@ -63,16 +65,32 @@ Do not commit real credentials, private package names, local SDK paths, device i
 
 ```bash
 ./gradlew testDebugUnitTest      # JVM unit tests
-./gradlew assembleDebug          # debug APK
+./gradlew assembleDebug          # debug APK (auto-signed)
+./gradlew assembleRelease        # release APK (unsigned)
 ./gradlew lintDebug              # Android lint
 ./gradlew clean                  # remove build outputs
 ```
 
-Release builds should be produced from a clean tree after reviewing configuration, permissions, and disclosure text:
+## Architecture overview
 
-```bash
-./gradlew assembleRelease
+```text
+app/src/main/java/com/autoclock/
+├── MainActivity.kt                 # configuration UI, permissions, history, email test
+├── AutoClockService.kt             # AccessibilityService gesture sequence and target text reads
+├── AlarmScheduler.kt               # exact-alarm scheduling for configured windows
+├── AlarmReceiver.kt / BootReceiver.kt # alarm triggers and boot rescheduling
+├── CoordinatePickerActivity.kt     # full-screen coordinate capture helper
+├── UsageGuideActivity.kt           # built-in usage guide with step-by-step instructions
+├── Prefs.kt                        # app-private settings and encrypted SMTP password storage
+├── ClockSuccessDetector.kt         # target package and success-text matching
+├── ClockHistory.kt / ClockRecord.kt # local history serialization
+├── EmailSender.kt / ClockEmailContent.kt # optional SMTP notifications
+├── TimeFormatter.kt                # time formatting utilities
+├── CoordinateMapper.kt             # coordinate ratio mapping
+└── ClockAccessibilitySnapshot.kt   # accessibility event snapshot model
 ```
+
+Data flow: `MainActivity` saves user configuration into `Prefs`; `AlarmScheduler` schedules `AlarmReceiver`; `AlarmReceiver` calls the active `AutoClockService`; the service performs the configured gestures, checks the target window through `ClockSuccessDetector`, records the result, waits 2 seconds, then kills the target app to prevent residual popups, and optionally asks `EmailSender` to notify the configured recipient.
 
 ## Accessibility and privacy disclosure
 
@@ -81,7 +99,8 @@ This app uses Android AccessibilityService capabilities. When the user explicitl
 - perform configured screen gestures, including taps and the global Home action;
 - read text and content descriptions from the configured target package to detect the configured success message;
 - run scheduled automation flows while the device is awake;
-- use `WAKE_LOCK` and exact alarms to trigger the configured sequence.
+- use `WAKE_LOCK` and exact alarms to trigger the configured sequence;
+- force-stop the target app after a successful operation to prevent popup residue.
 
 Privacy boundaries in the current implementation:
 
@@ -95,39 +114,14 @@ Privacy boundaries in the current implementation:
 
 Users should grant AccessibilityService access only after understanding these behaviors.
 
-## Architecture overview
-
-```text
-app/src/main/java/com/autoclock/
-├── MainActivity.kt                 # configuration UI, permissions, history, email test
-├── AutoClockService.kt             # AccessibilityService gesture sequence and target text reads
-├── AlarmScheduler.kt               # exact-alarm scheduling for configured windows
-├── AlarmReceiver.kt / BootReceiver.kt # alarm triggers and boot rescheduling
-├── CoordinatePickerActivity.kt     # full-screen coordinate capture helper
-├── Prefs.kt                        # app-private settings and encrypted SMTP password storage
-├── ClockSuccessDetector.kt         # target package and success-text matching
-├── ClockHistory.kt / ClockRecord.kt # local history serialization
-└── EmailSender.kt / ClockEmailContent.kt # optional SMTP notifications
-```
-
-Data flow: `MainActivity` saves user configuration into `Prefs`; `AlarmScheduler` schedules `AlarmReceiver`; `AlarmReceiver` calls the active `AutoClockService`; the service performs the configured gestures, checks the target window through `ClockSuccessDetector`, records the result, and optionally asks `EmailSender` to notify the configured recipient.
-
 ## Security notes
 
 - The app requests powerful permissions: AccessibilityService binding, exact alarms, wake lock, boot completed, and internet for optional email.
 - Keep `android:packageNames` scoped to the intended target package; avoid broad accessibility access.
-- Do not log or commit secrets. `.gitignore` excludes `.env`, key files, and local build output.
+- Do not log or commit secrets. `.gitignore` excludes `.env`, `local.properties`, key files, and local build output.
 - Review exported components before release. Only the launcher activity and required system-bound components should be exported.
 - Test release builds after any ProGuard/R8 changes.
 - Report vulnerabilities privately; see `SECURITY.md`.
-
-## Using with Claude Code
-
-This repository includes `CLAUDE.md` with concise project context, commands, and architecture for Claude Code.
-
-```bash
-claude
-```
 
 ## Release checklist
 
@@ -137,6 +131,7 @@ claude
 - [ ] Run `./gradlew testDebugUnitTest`.
 - [ ] Run `./gradlew lintDebug`.
 - [ ] Build from a clean tree with `./gradlew assembleRelease`.
+- [ ] Sign the release APK with your keystore.
 - [ ] Review `LICENSE`, `SECURITY.md`, and issue templates.
 
 ## License
