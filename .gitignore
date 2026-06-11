@@ -22,6 +22,16 @@ Thumbs.db
 *.key
 *.p12
 *.pfx
+*.jks
+*.ks
+*.keystore
+*.der
+*.cer
+*.asc
+keystore.properties
+google-services.json
+id_rsa
+id_ed25519
 credentials.json
 service-account.json
 secrets/

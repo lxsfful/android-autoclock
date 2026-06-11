@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="@color/background">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="📖 使用说明"
+            android:textSize="24sp"
+            android:textStyle="bold"
+            android:textColor="@color/on_surface"
+            android:layout_marginBottom="20dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="一、准备工作"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:textColor="@color/primary"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="1. 安装并打开 AutoClock 应用\n2. 点击「打开无障碍服务设置」，找到 AutoClock Sample Service 并开启\n3. 如提示需要精确闹钟权限，请授权\n4. 准备好目标打卡 App（如云之家），确认打卡按钮位置"
+            android:textSize="14sp"
+            android:textColor="@color/on_surface"
+            android:lineSpacingExtra="4dp"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="二、配置坐标"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:textColor="@color/primary"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="需要配置三个点击位置的坐标（屏幕百分比 0-100）：\n\n"
+            android:textSize="14sp"
+            android:textColor="@color/on_surface"
+            android:lineSpacingExtra="4dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="① 第一次点击：打开打卡 App\n   在桌面找到打卡 App 的快捷方式图标，点击「从截图点选」按钮，截取桌面后点击图标位置\n\n② 第二次点击：打卡按钮\n   打开打卡 App，导航到打卡页面，点击「从截图点选」按钮，截取页面后点击打卡按钮位置\n\n③ 第三次点击：任务后操作\n   打卡完成后需要点击的位置（可选），如不需要可保持默认"
+            android:textSize="14sp"
+            android:textColor="@color/on_surface"
+            android:lineSpacingExtra="4dp"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="三、设置时间窗口"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:textColor="@color/primary"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="设置开始打卡和结束打卡的时间范围：\n\n• 开始时间窗口：在此时间段内随机执行一次打卡\n• 结束时间窗口：在此时间段内随机执行一次打卡\n\n系统会在时间窗口内选择一个随机时间触发任务，避免每次都在同一时间打卡。"
+            android:textSize="14sp"
+            android:textColor="@color/on_surface"
+            android:lineSpacingExtra="4dp"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="四、启动自动任务"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:textColor="@color/primary"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="1. 确认无障碍服务已开启\n2. 确认精确闹钟权限已授权\n3. 打开「启用自动任务」开关\n4. 系统将按照配置的时间窗口自动执行打卡\n\n注意：打卡期间请勿手动操作手机，以免干扰自动流程。"
+            android:textSize="14sp"
+            android:textColor="@color/on_surface"
+            android:lineSpacingExtra="4dp"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="五、测试功能"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:textColor="@color/primary"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="• 测试开始任务：立即执行一次打卡开始流程\n• 测试结束任务：立即执行一次打卡结束流程\n\n建议在正式启用前先测试几次，确保坐标配置正确。"
+            android:textSize="14sp"
+            android:textColor="@color/on_surface"
+            android:lineSpacingExtra="4dp"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="六、邮件通知（可选）"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:textColor="@color/primary"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="配置 SMTP 邮箱后，打卡失败时会发送邮件提醒：\n\n1. 填写 SMTP 服务器地址和端口\n2. 填写发件邮箱和 SMTP 授权码\n3. 填写收件邮箱（留空则发给自己）\n4. 点击「保存邮件设置」\n5. 可点击「发送测试邮件」验证配置"
+            android:textSize="14sp"
+            android:textColor="@color/on_surface"
+            android:lineSpacingExtra="4dp"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="七、注意事项"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:textColor="@color/primary"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="• 本应用仅用于授权场景下的自动化测试\n• 请确保有使用目标 App 的合法权限\n• 打卡成功后会自动结束目标 App 进程，避免弹窗干扰\n• 手机重启后需要重新开启无障碍服务\n• 建议将 AutoClock 加入电池优化白名单，避免被系统杀死"
+            android:textSize="14sp"
+            android:textColor="@color/on_surface"
+            android:lineSpacingExtra="4dp"
+            android:layout_marginBottom="20dp"/>
+
+    </LinearLayout>
+</ScrollView>

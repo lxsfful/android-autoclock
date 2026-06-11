@@ -69,7 +69,7 @@ object EmailSender {
                     body    = "邮件配置验证成功，自动任务通知将使用此地址发送。")
                 onResult(true, "测试邮件已发送至 $recipient")
             } catch (e: Exception) {
-                Log.e(TAG, "测试邮件发送失败", e)
+                logEmailFailure("测试邮件发送失败", e)
                 onResult(false, "发送失败，请检查 SMTP 配置、授权码或网络")
             }
         }
@@ -89,7 +89,7 @@ object EmailSender {
                 send(host, port, sender, password, recipient, subject, body)
                 Log.i(TAG, "邮件已发送：$subject")
             } catch (e: Exception) {
-                Log.e(TAG, "邮件发送失败", e)
+                logEmailFailure("邮件发送失败", e)
             }
         }
     }
@@ -131,6 +131,10 @@ object EmailSender {
             setText(body, "UTF-8")
         }
         Transport.send(message)
+    }
+
+    private fun logEmailFailure(message: String, error: Exception) {
+        Log.e(TAG, "$message: ${error.javaClass.simpleName}")
     }
 
     private fun effectiveRecipient(prefs: Prefs): String {

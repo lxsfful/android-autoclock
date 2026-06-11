@@ -1,44 +1,148 @@
 # android-autoclock
 
-Android/Kotlin AccessibilityService automation sample and personal tool.
+Android/Kotlin sample app for authorized, user-configured AccessibilityService automation. It schedules a small gesture sequence, detects a configurable success message in a target app, records local history, and can send optional email notifications.
 
-This project demonstrates a user-configured, time-window-based automation flow:
+## Ethical and authorized use
 
-1. Wake the screen and return to the launcher.
-2. Tap a user-selected shortcut coordinate for a target app.
-3. Wait for a configurable delay.
-4. Tap a user-selected action coordinate.
-5. Watch the configured target app for a generic success message.
-6. Return to the launcher and optionally tap a third user-selected coordinate.
+Use this project only on devices, accounts, and apps where you have clear permission to automate. Do not use it to evade rules, misrepresent user actions, bypass controls, or automate any service whose terms or policies prohibit automation. You are responsible for complying with applicable laws, app terms, organization policies, and Android AccessibilityService disclosure requirements.
 
-## Intended use
+## Features
 
-This repository is published as an Android AccessibilityService automation sample for personal, permitted automation and learning. It is not positioned as, and should not be used as, a workplace policy bypass, attendance fraud tool, or automation against services where automation is prohibited. Always comply with applicable laws, policies, app terms, and workplace rules.
+- Kotlin Android app using Gradle and AndroidX.
+- AccessibilityService-driven gesture automation with user-selected screen coordinates.
+- Exact-alarm scheduling for two configurable daily time windows.
+- Target-app success detection using a placeholder package name and success text.
+- Local run history stored in app-private preferences.
+- Optional SMTP email notifications for success, failure, and test messages.
+- Android Keystore-backed encryption for stored SMTP app passwords where available.
+- `FLAG_SECURE` on the main configuration screen to reduce screenshot/screen-recording exposure.
+- Unit tests for scheduling windows, formatting, coordinate mapping, history, email content, and success detection.
 
-## Configuration placeholders
+## Quick start
 
-Before using the sample, replace the placeholder target package and success text with values appropriate for your own permitted use case:
+```bash
+git clone https://github.com/YOUR_ORG/android-autoclock.git
+cd android-autoclock
+./setup.sh
+```
 
-- `app/src/main/java/com/autoclock/ClockSuccessDetector.kt`
-- `app/src/main/res/xml/accessibility_service_config.xml`
-
-The default placeholder package is `com.example.targetapp`.
-
-## Build
-
-Install Android Studio or the Android SDK, create your own `local.properties` with `sdk.dir`, then run:
+`setup.sh` validates Java and creates `local.properties` from `ANDROID_HOME`/`ANDROID_SDK_ROOT` when available. If it creates a placeholder instead, edit `local.properties` before running Gradle:
 
 ```bash
 ./gradlew testDebugUnitTest
 ./gradlew assembleDebug
 ```
 
-## Privacy and security
+If you do not use `setup.sh`, install the prerequisites below and create `local.properties` yourself.
 
-- The sample stores coordinates, time windows, and optional email settings locally on the device.
-- SMTP credentials entered in the app are stored with Android Keystore-backed encryption where available.
-- No real credentials, local SDK paths, device IDs, or private handoff notes are included in this repository.
+## Prerequisites
+
+- Android Studio or Android SDK command-line tools.
+- JDK 17 or newer, with `JAVA_HOME` set.
+- Android SDK Platform 34.
+- A local Android SDK path in `local.properties`:
+
+```properties
+sdk.dir=/path/to/Android/Sdk
+```
+
+## Configuration placeholders
+
+This repository intentionally ships with generic placeholders. Before building for your own permitted use case, review and replace:
+
+| Placeholder | Location | Purpose |
+| --- | --- | --- |
+| `com.example.targetapp` | `app/src/main/java/com/autoclock/ClockSuccessDetector.kt` | Target package checked before reading window text. |
+| `com.example.targetapp` | `app/src/main/res/xml/accessibility_service_config.xml` | Package filter for accessibility events. |
+| `操作成功` | `app/src/main/java/com/autoclock/ClockSuccessDetector.kt` | Success text detected in the target app. |
+| SMTP host, port, sender, recipient, app password | In-app email settings; `.env.example` documents placeholder values only | Optional email notifications. |
+
+Do not commit real credentials, private package names, local SDK paths, device identifiers, screenshots with sensitive content, or app-specific private notes.
+
+## Build and test
+
+```bash
+./gradlew testDebugUnitTest      # JVM unit tests
+./gradlew assembleDebug          # debug APK
+./gradlew lintDebug              # Android lint
+./gradlew clean                  # remove build outputs
+```
+
+Release builds should be produced from a clean tree after reviewing configuration, permissions, and disclosure text:
+
+```bash
+./gradlew assembleRelease
+```
+
+## Accessibility and privacy disclosure
+
+This app uses Android AccessibilityService capabilities. When the user explicitly enables the service, it can:
+
+- perform configured screen gestures, including taps and the global Home action;
+- read text and content descriptions from the configured target package to detect the configured success message;
+- run scheduled automation flows while the device is awake;
+- use `WAKE_LOCK` and exact alarms to trigger the configured sequence.
+
+Privacy boundaries in the current implementation:
+
+- Accessibility event filtering is limited to the configured target package.
+- Active-window text is read only after the active package matches the configured target package.
+- Target-app text is used transiently for success detection and is not intentionally persisted.
+- Coordinates, time windows, history, and email settings are stored locally in app-private preferences.
+- SMTP app passwords are migrated away from plaintext storage and saved with Android Keystore-backed AES-GCM encryption when available.
+- Email notifications are sent only to user-configured SMTP and recipient settings.
+- The main configuration screen sets `FLAG_SECURE`.
+
+Users should grant AccessibilityService access only after understanding these behaviors.
+
+## Architecture overview
+
+```text
+app/src/main/java/com/autoclock/
+├── MainActivity.kt                 # configuration UI, permissions, history, email test
+├── AutoClockService.kt             # AccessibilityService gesture sequence and target text reads
+├── AlarmScheduler.kt               # exact-alarm scheduling for configured windows
+├── AlarmReceiver.kt / BootReceiver.kt # alarm triggers and boot rescheduling
+├── CoordinatePickerActivity.kt     # full-screen coordinate capture helper
+├── Prefs.kt                        # app-private settings and encrypted SMTP password storage
+├── ClockSuccessDetector.kt         # target package and success-text matching
+├── ClockHistory.kt / ClockRecord.kt # local history serialization
+└── EmailSender.kt / ClockEmailContent.kt # optional SMTP notifications
+```
+
+Data flow: `MainActivity` saves user configuration into `Prefs`; `AlarmScheduler` schedules `AlarmReceiver`; `AlarmReceiver` calls the active `AutoClockService`; the service performs the configured gestures, checks the target window through `ClockSuccessDetector`, records the result, and optionally asks `EmailSender` to notify the configured recipient.
+
+## Security notes
+
+- The app requests powerful permissions: AccessibilityService binding, exact alarms, wake lock, boot completed, and internet for optional email.
+- Keep `android:packageNames` scoped to the intended target package; avoid broad accessibility access.
+- Do not log or commit secrets. `.gitignore` excludes `.env`, key files, and local build output.
+- Review exported components before release. Only the launcher activity and required system-bound components should be exported.
+- Test release builds after any ProGuard/R8 changes.
+- Report vulnerabilities privately; see `SECURITY.md`.
+
+## Using with Claude Code
+
+This repository includes `CLAUDE.md` with concise project context, commands, and architecture for Claude Code.
+
+```bash
+claude
+```
+
+## Release checklist
+
+- [ ] Replace placeholder package and success text with your authorized target configuration.
+- [ ] Confirm accessibility disclosure text matches actual behavior.
+- [ ] Verify no private paths, credentials, device IDs, screenshots, or service-specific names are present.
+- [ ] Run `./gradlew testDebugUnitTest`.
+- [ ] Run `./gradlew lintDebug`.
+- [ ] Build from a clean tree with `./gradlew assembleRelease`.
+- [ ] Review `LICENSE`, `SECURITY.md`, and issue templates.
 
 ## License
 
 MIT. See `LICENSE`.
+
+## Contributing
+
+See `CONTRIBUTING.md`.

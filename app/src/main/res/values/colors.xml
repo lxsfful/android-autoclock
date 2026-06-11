@@ -1,4 +1,21 @@
 <resources>
+    <!-- 清新淡雅配色方案 -->
+    <color name="primary">#FF5B9BD5</color>
+    <color name="primary_variant">#FF3A7CC0</color>
+    <color name="on_primary">#FFFFFFFF</color>
+    <color name="secondary">#FF81C784</color>
+    <color name="secondary_variant">#FF66BB6A</color>
+    <color name="on_secondary">#FFFFFFFF</color>
+    <color name="background">#FFF5F7FA</color>
+    <color name="surface">#FFFFFFFF</color>
+    <color name="on_surface">#FF333333</color>
+    <color name="on_surface_secondary">#FF888888</color>
+    <color name="divider">#FFE8ECF1</color>
+    <color name="success">#FF81C784</color>
+    <color name="error">#FFE57373</color>
+    <color name="info">#FF5B9BD5</color>
+
+    <!-- 兼容旧引用 -->
     <color name="purple_200">#FFBB86FC</color>
     <color name="purple_500">#FF6200EE</color>
     <color name="purple_700">#FF3700B3</color>

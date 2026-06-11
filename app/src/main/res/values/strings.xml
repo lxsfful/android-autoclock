@@ -1,5 +1,5 @@
 <resources>
     <string name="app_name">AutoClock Sample</string>
     <string name="accessibility_service_label">AutoClock Sample Service</string>
-    <string name="accessibility_service_description">Android AccessibilityService automation sample for a user-configured target app. It does not collect personal data.</string>
+    <string name="accessibility_service_description">Android AccessibilityService automation sample. Runs scheduled user-configured gestures, including Home and taps; reads configured target-app text and content descriptions locally to detect success; stores local history; and can send optional user-configured email notifications.</string>
 </resources>

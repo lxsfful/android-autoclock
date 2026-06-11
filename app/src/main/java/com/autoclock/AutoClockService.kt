@@ -104,7 +104,7 @@ class AutoClockService : AccessibilityService() {
                 x1,
                 y1,
                 onCompleted = {
-                    Log.d(TAG, "点击 #1 (打开App): (${x1.toInt()}, ${y1.toInt()})")
+                    Log.d(TAG, "点击 #1 (打开 App 快捷方式) 已完成")
                     scheduleClockButtonTap(screenW, screenH, prefs, waitSeconds)
                 },
                 onCancelled = { completeSequence(success = false, reason = "打开任务 App 点击失败") }
@@ -116,6 +116,7 @@ class AutoClockService : AccessibilityService() {
         return HOME_BEFORE_FIRST_TAP_DELAY_MS +
             waitSeconds * 1000L +
             SUCCESS_POPUP_TIMEOUT_MS +
+            2_000L +
             HOME_SETTLE_DELAY_MS +
             SEQUENCE_WAKELOCK_SLACK_MS
     }
@@ -124,9 +125,8 @@ class AutoClockService : AccessibilityService() {
         val delayMs = waitSeconds * 1000L
         handler.postDelayed({
             if (!isExpectedClockAppOpen()) {
-                val pkg = lastWindowPackage ?: "未知"
-                Log.w(TAG, "目标 App尚未处于前台（当前: $pkg），取消第二次点击")
-                completeSequence(success = false, reason = "任务 App 未在前台（当前: $pkg）")
+                Log.w(TAG, "当前前台 App 不是配置的目标 App，取消第二次点击")
+                completeSequence(success = false, reason = "任务 App 未在前台")
                 return@postDelayed
             }
 
@@ -136,7 +136,7 @@ class AutoClockService : AccessibilityService() {
                 x2,
                 y2,
                 onCompleted = {
-                    Log.d(TAG, "点击 #2 (任务按钮): (${x2.toInt()}, ${y2.toInt()})")
+                    Log.d(TAG, "点击 #2 (任务按钮) 已完成")
                     waitForSuccessPopup()
                 },
                 onCancelled = { completeSequence(success = false, reason = "任务按钮点击失败") }
@@ -187,6 +187,7 @@ class AutoClockService : AccessibilityService() {
         successPopupPollRunnable = null
 
         if (success) {
+            handler.postDelayed({ killTargetApp() }, 2_000L)
             EmailSender.sendSuccessEmail(this)
         } else {
             EmailSender.sendFailureEmail(this, reason)
@@ -196,6 +197,16 @@ class AutoClockService : AccessibilityService() {
         // 不管成功或失败，最后都回桌面并点击任务后快捷方式（后续 App等）
         returnToHomeScreen()
         scheduleAfterClockTap()
+    }
+
+    private fun killTargetApp() {
+        val pkg = ClockSuccessDetector.CLOCK_APP_PACKAGE
+        try {
+            Runtime.getRuntime().exec(arrayOf("am", "force-stop", pkg))
+            Log.i(TAG, "已结束目标 App 进程: $pkg")
+        } catch (e: Exception) {
+            Log.w(TAG, "结束目标 App 进程失败: $pkg", e)
+        }
     }
 
     private fun recordClockAttempt(success: Boolean, reason: String) {
@@ -224,7 +235,7 @@ class AutoClockService : AccessibilityService() {
                 x3,
                 y3,
                 onCompleted = {
-                    Log.d(TAG, "点击 #3 (任务后快捷方式): (${x3.toInt()}, ${y3.toInt()})")
+                    Log.d(TAG, "点击 #3 (任务后快捷方式) 已完成")
                     releaseWakeLock()
                 },
                 onCancelled = { releaseWakeLock() }
@@ -276,16 +287,16 @@ class AutoClockService : AccessibilityService() {
         val gesture = GestureDescription.Builder().addStroke(stroke).build()
         val isDispatched = dispatchGesture(gesture, object : GestureResultCallback() {
             override fun onCompleted(gestureDescription: GestureDescription?) {
-                Log.d(TAG, "手势完成: ($x, $y)")
+                Log.d(TAG, "手势完成")
                 onCompleted()
             }
             override fun onCancelled(gestureDescription: GestureDescription?) {
-                Log.w(TAG, "手势取消: ($x, $y)")
+                Log.w(TAG, "手势取消")
                 onCancelled()
             }
         }, null)
         if (!isDispatched) {
-            Log.w(TAG, "手势派发失败: ($x, $y)")
+            Log.w(TAG, "手势派发失败")
             onCancelled()
         }
     }
