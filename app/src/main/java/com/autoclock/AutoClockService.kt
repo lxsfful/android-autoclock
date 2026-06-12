@@ -64,10 +64,9 @@ class AutoClockService : AccessibilityService() {
         if (!isWaitingForSuccessPopup || hasTerminalResult || event == null) return
         if (lastWindowPackage != TARGET_APP_PACKAGE) return
 
-        val snapshot = event.toClockSnapshot(emptyList())
-        if (ClockSuccessDetector.isSuccessPopup(snapshot)) {
-            Log.i(TAG, "检测到目标 App操作成功弹窗")
-            completeSequence(success = true, reason = "检测到目标 App操作成功弹窗")
+        if (ClockSuccessDetector.isPopupWindow(event)) {
+            Log.i(TAG, "检测到云之家弹窗事件，打卡成功")
+            completeSequence(success = true, reason = "检测到云之家弹窗事件，打卡成功")
         }
     }
 
@@ -176,14 +175,8 @@ class AutoClockService : AccessibilityService() {
     }
 
     private fun detectSuccessFromActiveWindow(): Boolean {
-        val snapshot = ClockAccessibilitySnapshot(
-            packageName = TARGET_APP_PACKAGE,
-            className = null,
-            texts = collectActiveWindowTexts(),
-            contentDescription = null,
-            eventType = 0
-        )
-        return ClockSuccessDetector.isSuccessPopup(snapshot)
+        val currentPackage = currentActiveWindowPackage() ?: return false
+        return currentPackage == TARGET_APP_PACKAGE
     }
 
     private fun completeSequence(success: Boolean, reason: String) {
