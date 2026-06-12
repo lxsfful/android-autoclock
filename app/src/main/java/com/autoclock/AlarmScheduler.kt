@@ -59,7 +59,7 @@ object AlarmScheduler {
         val cal = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, hStart)
             set(Calendar.MINUTE, mStart)
-            set(Calendar.SECOND, 0)
+            set(Calendar.SECOND, Random.nextInt(0, 60))
             set(Calendar.MILLISECOND, 0)
         }
         cal.timeInMillis += Random.nextLong(windowMs)
@@ -68,7 +68,7 @@ object AlarmScheduler {
             cal.add(Calendar.DAY_OF_MONTH, 1)
             cal.set(Calendar.HOUR_OF_DAY, hStart)
             cal.set(Calendar.MINUTE, mStart)
-            cal.set(Calendar.SECOND, 0)
+            cal.set(Calendar.SECOND, Random.nextInt(0, 60))
             cal.set(Calendar.MILLISECOND, 0)
             cal.timeInMillis += Random.nextLong(windowMs)
         }

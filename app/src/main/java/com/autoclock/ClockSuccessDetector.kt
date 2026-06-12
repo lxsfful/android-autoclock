@@ -3,7 +3,7 @@ package com.autoclock
 object ClockSuccessDetector {
     const val CLOCK_APP_PACKAGE = "com.kdweibo.client"
 
-    private const val SUCCESS_TEXT = "操作成功"
+    private const val SUCCESS_TEXT = "打卡成功"
 
     fun isSuccessPopup(snapshot: ClockAccessibilitySnapshot): Boolean {
         if (snapshot.packageName != CLOCK_APP_PACKAGE) return false
