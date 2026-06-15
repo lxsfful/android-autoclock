@@ -32,7 +32,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="1. 安装并打开 AutoClock 应用\n2. 点击「打开无障碍服务设置」，找到 AutoClock Sample Service 并开启\n3. 如提示需要精确闹钟权限，请授权\n4. 准备好目标打卡 App（如云之家），确认打卡按钮位置"
+            android:text="1. 安装并打开 AutoClock 应用\n2. 点击「打开无障碍服务设置」，找到 AutoClock Sample Service 并开启\n3. 如提示需要精确闹钟权限，请授权\n4. 准备好目标打卡 App（如云之家），确认打卡按钮位置\n5. 测试设备需保持可解锁/无安全锁屏；应用可点亮屏幕，但不能绕过锁屏"
             android:textSize="14sp"
             android:textColor="@color/on_surface"
             android:lineSpacingExtra="4dp"
@@ -50,7 +50,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="需要配置三个点击位置的坐标（屏幕百分比 0-100）：\n\n"
+            android:text="需要重点配置前两个点击位置的坐标（屏幕百分比 0-100）：\n\n"
             android:textSize="14sp"
             android:textColor="@color/on_surface"
             android:lineSpacingExtra="4dp"/>
@@ -58,7 +58,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="① 第一次点击：打开打卡 App\n   在桌面找到打卡 App 的快捷方式图标，点击「从截图点选」按钮，截取桌面后点击图标位置\n\n② 第二次点击：打卡按钮\n   打开打卡 App，导航到打卡页面，点击「从截图点选」按钮，截取页面后点击打卡按钮位置\n\n③ 第三次点击：任务后操作\n   打卡完成后需要点击的位置（可选），如不需要可保持默认"
+            android:text="① 第一次点击：打开打卡 App\n   在桌面找到打卡 App 的快捷方式图标，点击「从截图点选」按钮，截取桌面后点击图标位置\n\n② 第二次点击：打卡按钮\n   打开打卡 App，导航到打卡页面，点击「从截图点选」按钮，截取页面后点击打卡按钮位置\n\n③ 任务后操作\n   当前版本打卡完成后会返回桌面、结束目标 App 并打开向日葵；如界面保留第三坐标，可暂保持默认"
             android:textSize="14sp"
             android:textColor="@color/on_surface"
             android:lineSpacingExtra="4dp"
@@ -121,7 +121,25 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="六、邮件通知（可选）"
+            android:text="六、排查历史失败原因"
+            android:textSize="17sp"
+            android:textStyle="bold"
+            android:textColor="@color/primary"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="• 任务 App 未在前台：检查桌面快捷方式坐标、目标包名配置、等待秒数，并确认无障碍服务已重新开启生效\n• 设备处于锁屏状态：请保持测试设备可解锁/无安全锁屏后重试\n• 无障碍服务未运行：请在系统设置中重新开启服务，并加入电池优化白名单\n• 等待目标 App操作成功提示超时：确认目标 App 是否弹出“操作成功”提示"
+            android:textSize="14sp"
+            android:textColor="@color/on_surface"
+            android:lineSpacingExtra="4dp"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="七、邮件通知（可选）"
             android:textSize="17sp"
             android:textStyle="bold"
             android:textColor="@color/primary"
@@ -139,7 +157,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="七、注意事项"
+            android:text="八、注意事项"
             android:textSize="17sp"
             android:textStyle="bold"
             android:textColor="@color/primary"
@@ -148,7 +166,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="• 本应用仅用于授权场景下的自动化测试\n• 请确保有使用目标 App 的合法权限\n• 打卡成功后会自动结束目标 App 进程，避免弹窗干扰\n• 手机重启后需要重新开启无障碍服务\n• 建议将 AutoClock 加入电池优化白名单，避免被系统杀死"
+            android:text="• 本应用仅用于授权场景下的自动化测试\n• 请确保有使用目标 App 的合法权限\n• 随机闹钟可唤醒/点亮屏幕，但不能绕过安全锁屏\n• 打卡成功后会自动结束目标 App 进程，避免弹窗干扰\n• 手机重启后需要重新开启无障碍服务\n• 建议将 AutoClock 加入电池优化白名单，避免被系统杀死"
             android:textSize="14sp"
             android:textColor="@color/on_surface"
             android:lineSpacingExtra="4dp"

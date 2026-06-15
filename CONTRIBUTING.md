@@ -30,7 +30,7 @@ Requirements:
 2. Create a focused branch, for example `docs/readme-release-checklist`.
 3. Keep pull requests small and explain user-visible behavior changes.
 4. Include test results in the PR description.
-5. Update README, `CLAUDE.md`, and disclosure text when behavior or permissions change.
+5. Update README, `CLAUDE.md`, usage guide, and disclosure text when behavior, target package scope, or permissions change.
 
 ## Code style
 
@@ -49,13 +49,14 @@ Run at minimum:
 ./gradlew lintDebug
 ```
 
-Add or update unit tests for scheduling, parsing, coordinate mapping, success detection, history serialization, and email content when those areas change.
+Add or update unit tests for scheduling, parsing, coordinate mapping, foreground diagnostics, success detection, history serialization, and email content when those areas change.
 
 ## Accessibility and privacy review
 
 Before submitting changes that affect automation, permissions, storage, or networking, verify:
 
-- Accessibility events remain scoped to the configured target package.
+- Accessibility events and window-content reads remain scoped to the configured target package.
+- Target package constants and `accessibility_service_config.xml` stay synchronized.
 - Window text is not stored or logged unnecessarily.
 - SMTP credentials are not committed and remain protected by platform secure storage.
 - UI disclosure text accurately describes what the app can do.

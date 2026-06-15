@@ -42,6 +42,13 @@ class ClockSuccessDetectorTest {
     }
 
     @Test
+    fun `detects success when stale failure text is elsewhere in target window`() {
+        val snapshot = snapshot(texts = listOf("上次任务失败", "操作成功"))
+
+        assertTrue(ClockSuccessDetector.isSuccessPopup(snapshot))
+    }
+
+    @Test
     fun `detects success text in noisy target app window text`() {
         val snapshot = snapshot(texts = listOf("目标 App", "示例", "✓", "操作成功", "知道了"))
 
@@ -62,8 +69,22 @@ class ClockSuccessDetectorTest {
         assertTrue(ClockSuccessDetector.isSuccessPopup(snapshot))
     }
 
+    @Test
+    fun `ignores target app window state change without success text`() {
+        val snapshot = snapshot(texts = emptyList(), eventType = 32)
+
+        assertFalse(ClockSuccessDetector.isSuccessPopup(snapshot))
+    }
+
+    @Test
+    fun `ignores blank package with success text`() {
+        val snapshot = snapshot(packageName = null, texts = listOf("操作成功"))
+
+        assertFalse(ClockSuccessDetector.isSuccessPopup(snapshot))
+    }
+
     private fun snapshot(
-        packageName: String = ClockSuccessDetector.CLOCK_APP_PACKAGE,
+        packageName: String? = ClockSuccessDetector.CLOCK_APP_PACKAGE,
         texts: List<String>,
         contentDescription: String? = null,
         eventType: Int = 32

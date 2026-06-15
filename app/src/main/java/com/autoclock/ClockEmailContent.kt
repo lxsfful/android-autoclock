@@ -5,11 +5,11 @@ import java.util.Date
 import java.util.Locale
 
 object ClockEmailContent {
-    const val FAILURE_MESSAGE = "打卡不成功，请手动打卡"
-    const val SUCCESS_MESSAGE = "打卡成功，请手动查看核实"
+    const val FAILURE_MESSAGE = "自动化任务未确认，请手动检查"
+    const val SUCCESS_MESSAGE = "自动操作成功，任务时间"
 
     fun successSubject(timeText: String): String {
-        return SUCCESS_MESSAGE
+        return "$SUCCESS_MESSAGE$timeText"
     }
 
     fun formatClockTime(timeMillis: Long): String {

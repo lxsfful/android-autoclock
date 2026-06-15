@@ -4,7 +4,7 @@
 
 ## What
 
-Android AccessibilityService 自动化打卡应用。调度手势序列，检测目标应用弹窗事件，记录历史，可选邮件通知。
+Android AccessibilityService 自动化打卡应用。调度手势序列，在目标应用窗口内检测成功提示，记录历史，可选邮件通知。
 
 ## Commands
 
@@ -20,9 +20,9 @@ Android AccessibilityService 自动化打卡应用。调度手势序列，检测
 ```text
 app/src/main/java/com/autoclock/
 ├── MainActivity.kt          # 主界面、权限、设置
-├── AutoClockService.kt      # 无障碍服务，执行手势和弹窗事件检测
+├── AutoClockService.kt      # 无障碍服务，执行手势、唤醒和前台诊断
 ├── AlarmScheduler.kt        # 精确闹钟调度（分钟+秒数随机化）
-├── ClockSuccessDetector.kt  # 弹窗事件检测打卡成功
+├── ClockSuccessDetector.kt  # 基于目标窗口文本/描述检测“操作成功”
 ├── Prefs.kt                 # SharedPreferences 配置
 └── CoordinateMapper.kt      # 坐标比例映射
 ```
@@ -40,11 +40,12 @@ $env:PATH = "$env:JAVA_HOME\bin;$env:PATH"
 
 ## Configuration
 
-在 `AutoClockService.kt` 中配置：
-- `TARGET_APP_PACKAGE`: 目标应用包名（如云之家）
-- `SUNFLOWER_PACKAGE`: 向日葵包名（可选）
+在源码中配置：
+- `TargetApps.CLOCK_PACKAGE`: 目标应用包名（如云之家），供前台检查和成功检测共用
+- `app/src/main/res/xml/accessibility_service_config.xml` 的 `android:packageNames`: 无障碍服务监听/读取目标包名，必须与 `TargetApps.CLOCK_PACKAGE` 一致
+- `TargetApps.SUNFLOWER_PACKAGE`: 向日葵包名（可选）
 
-其他配置通过应用内界面设置。
+其他配置通过应用内界面设置。修改无障碍服务 XML 后，需要重新安装应用或重新开启无障碍服务。
 
 ## Rules
 

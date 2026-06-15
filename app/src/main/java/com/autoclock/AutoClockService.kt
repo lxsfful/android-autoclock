@@ -2,8 +2,10 @@ package com.autoclock
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.app.KeyguardManager
 import android.content.Intent
 import android.graphics.Path
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
@@ -21,17 +23,20 @@ class AutoClockService : AccessibilityService() {
         private const val SUCCESS_POPUP_TIMEOUT_MS = 8_000L
         private const val SUCCESS_POLL_INTERVAL_MS = 500L
         private const val SEQUENCE_WAKELOCK_SLACK_MS = 10_000L
+        private const val FOREGROUND_RETRY_INTERVAL_MS = 500L
+        private const val FOREGROUND_RETRY_TIMEOUT_MS = 5_000L
         private const val MIN_WAIT_SECONDS = 1
         private const val MAX_WAIT_SECONDS = 60
         private const val MAX_COLLECTED_NODE_TEXTS = 80
-        
+        private const val LOCKED_DEVICE_REASON = "设备处于锁屏状态，无法点击桌面快捷方式"
+
         // 打卡完成后额外操作的延迟
         private const val POST_CLOCK_DELAY_MS = 3_000L
         
         // 目标应用包名（云之家）
-        private const val TARGET_APP_PACKAGE = "com.kdweibo.client"
+        private const val TARGET_APP_PACKAGE = TargetApps.CLOCK_PACKAGE
         // 向日葵包名
-        private const val SUNFLOWER_PACKAGE = "com.oray.sunlogin.service"
+        private const val SUNFLOWER_PACKAGE = TargetApps.SUNFLOWER_PACKAGE
 
         /** AlarmReceiver 通过此静态引用调用任务序列 */
         var instance: AutoClockService? = null
@@ -64,9 +69,10 @@ class AutoClockService : AccessibilityService() {
         if (!isWaitingForSuccessPopup || hasTerminalResult || event == null) return
         if (lastWindowPackage != TARGET_APP_PACKAGE) return
 
-        if (ClockSuccessDetector.isPopupWindow(event)) {
-            Log.i(TAG, "检测到云之家弹窗事件，打卡成功")
-            completeSequence(success = true, reason = "检测到云之家弹窗事件，打卡成功")
+        val snapshot = event.toClockSnapshot(collectActiveWindowTexts())
+        if (ClockSuccessDetector.isSuccessPopup(snapshot)) {
+            Log.i(TAG, "检测到云之家操作成功提示")
+            completeSequence(success = true, reason = "检测到云之家操作成功提示")
         }
     }
 
@@ -99,6 +105,11 @@ class AutoClockService : AccessibilityService() {
         val prefs = Prefs(this)
         val waitSeconds = prefs.waitSeconds.coerceIn(MIN_WAIT_SECONDS, MAX_WAIT_SECONDS)
         acquireWakeLock(sequenceWakeLockTimeoutMs(waitSeconds))
+        if (isDeviceLocked()) {
+            Log.w(TAG, LOCKED_DEVICE_REASON)
+            completeSequence(success = false, reason = LOCKED_DEVICE_REASON, runPostSequence = false)
+            return
+        }
         val metrics = resources.displayMetrics
         val screenW = metrics.widthPixels.toFloat()
         val screenH = metrics.heightPixels.toFloat()
@@ -132,23 +143,19 @@ class AutoClockService : AccessibilityService() {
     private fun scheduleClockButtonTap(screenW: Float, screenH: Float, prefs: Prefs, waitSeconds: Int) {
         val delayMs = waitSeconds * 1000L
         handler.postDelayed({
-            if (!isExpectedClockAppOpen()) {
-                Log.w(TAG, "当前前台 App 不是配置的目标 App，取消第二次点击")
-                completeSequence(success = false, reason = "任务 App 未在前台")
-                return@postDelayed
+            waitForExpectedClockAppOpen {
+                val x2 = tapCoordinate(screenW, prefs.clockBtnX)
+                val y2 = tapCoordinate(screenH, prefs.clockBtnY)
+                performTap(
+                    x2,
+                    y2,
+                    onCompleted = {
+                        Log.d(TAG, "点击 #2 (任务按钮) 已完成")
+                        waitForSuccessPopup()
+                    },
+                    onCancelled = { completeSequence(success = false, reason = "任务按钮点击失败") }
+                )
             }
-
-            val x2 = tapCoordinate(screenW, prefs.clockBtnX)
-            val y2 = tapCoordinate(screenH, prefs.clockBtnY)
-            performTap(
-                x2,
-                y2,
-                onCompleted = {
-                    Log.d(TAG, "点击 #2 (任务按钮) 已完成")
-                    waitForSuccessPopup()
-                },
-                onCancelled = { completeSequence(success = false, reason = "任务按钮点击失败") }
-            )
         }, delayMs)
     }
 
@@ -175,11 +182,20 @@ class AutoClockService : AccessibilityService() {
     }
 
     private fun detectSuccessFromActiveWindow(): Boolean {
-        val currentPackage = currentActiveWindowPackage() ?: return false
-        return currentPackage == TARGET_APP_PACKAGE
+        val texts = collectActiveWindowTexts()
+        if (texts.isEmpty()) return false
+
+        val snapshot = ClockAccessibilitySnapshot(
+            packageName = TARGET_APP_PACKAGE,
+            className = null,
+            texts = texts,
+            contentDescription = null,
+            eventType = 0
+        )
+        return ClockSuccessDetector.isSuccessPopup(snapshot)
     }
 
-    private fun completeSequence(success: Boolean, reason: String) {
+    private fun completeSequence(success: Boolean, reason: String, runPostSequence: Boolean = true) {
         if (hasTerminalResult) return
         hasTerminalResult = true
         isWaitingForSuccessPopup = false
@@ -195,8 +211,12 @@ class AutoClockService : AccessibilityService() {
         }
         recordClockAttempt(success, reason)
 
-        // 打卡完成后，延迟执行后续操作
-        handler.postDelayed({ postClockSequence() }, POST_CLOCK_DELAY_MS)
+        if (runPostSequence) {
+            // 打卡完成后，延迟执行后续操作
+            handler.postDelayed({ postClockSequence() }, POST_CLOCK_DELAY_MS)
+        } else {
+            releaseWakeLock()
+        }
     }
     
     /**
@@ -261,13 +281,32 @@ class AutoClockService : AccessibilityService() {
 
 
 
-    private fun isExpectedClockAppOpen(): Boolean {
-        val currentPackage = currentActiveWindowPackage()
-        if (currentPackage == null) {
-            Log.w(TAG, "无法确认当前前台 App，取消第二次点击")
-            return false
+    private fun waitForExpectedClockAppOpen(onReady: () -> Unit) {
+        val observedPackages = mutableListOf<String?>()
+        val maxAttempts = (FOREGROUND_RETRY_TIMEOUT_MS / FOREGROUND_RETRY_INTERVAL_MS).toInt() + 1
+
+        fun check(attempt: Int) {
+            if (hasTerminalResult) return
+
+            val currentPackage = currentActiveWindowPackage()
+            observedPackages.add(currentPackage)
+            if (currentPackage == TARGET_APP_PACKAGE) {
+                onReady()
+                return
+            }
+
+            if (attempt >= maxAttempts) {
+                val decision = ForegroundAppChecker.evaluate(observedPackages, TARGET_APP_PACKAGE)
+                val reason = decision.failureReason ?: ForegroundAppChecker.NOT_FOREGROUND_REASON
+                Log.w(TAG, reason)
+                completeSequence(success = false, reason = reason)
+                return
+            }
+
+            handler.postDelayed({ check(attempt + 1) }, FOREGROUND_RETRY_INTERVAL_MS)
         }
-        return currentPackage == TARGET_APP_PACKAGE
+
+        check(attempt = 1)
     }
 
     /** 只读取当前窗口包名，用于点击前确认；不要在这里读取非目标 App 的节点文本。 */
@@ -375,6 +414,17 @@ class AutoClockService : AccessibilityService() {
             } finally {
                 child.recycle()
             }
+        }
+    }
+
+    private fun isDeviceLocked(): Boolean {
+        val keyguardManager = getSystemService(KEYGUARD_SERVICE) as? KeyguardManager ?: return false
+        if (!keyguardManager.isKeyguardSecure) return false
+
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            keyguardManager.isDeviceLocked || keyguardManager.isKeyguardLocked
+        } else {
+            keyguardManager.isKeyguardLocked
         }
     }
 

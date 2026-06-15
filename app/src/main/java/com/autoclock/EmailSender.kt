@@ -87,7 +87,7 @@ object EmailSender {
         executor.execute {
             try {
                 send(host, port, sender, password, recipient, subject, body)
-                Log.i(TAG, "邮件已发送：$subject")
+                Log.i(TAG, "通知邮件已发送")
             } catch (e: Exception) {
                 logEmailFailure("邮件发送失败", e)
             }
