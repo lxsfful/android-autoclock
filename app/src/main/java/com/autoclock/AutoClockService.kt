@@ -223,21 +223,30 @@ class AutoClockService : AccessibilityService() {
      * 打卡完成后的操作序列：
      * 1. 返回桌面
      * 2. 杀死云之家进程
-     * 3. 打开向日葵
+     * 3. 点击向日葵桌面快捷方式
      */
     private fun postClockSequence() {
+        val prefs = Prefs(this)
+        val metrics = resources.displayMetrics
+        val screenW = metrics.widthPixels.toFloat()
+        val screenH = metrics.heightPixels.toFloat()
+
         // 1. 返回桌面
         returnToHomeScreen()
-        
+
         // 2. 延迟杀死云之家进程
-        handler.postDelayed({ 
+        handler.postDelayed({
             killTargetApp()
-            
-            // 3. 延迟打开向日葵
-            handler.postDelayed({ 
-                openSunflower()
-                releaseWakeLock()
-            }, 500L)
+
+            // 3. 延迟点击向日葵桌面快捷方式
+            handler.postDelayed({
+                val x = tapCoordinate(screenW, prefs.afterClockX)
+                val y = tapCoordinate(screenH, prefs.afterClockY)
+                performTap(x, y,
+                    onCompleted = { releaseWakeLock() },
+                    onCancelled = { releaseWakeLock() }
+                )
+            }, HOME_SETTLE_DELAY_MS)
         }, 500L)
     }
 

@@ -64,6 +64,7 @@ object AlarmScheduler {
         }
         cal.timeInMillis += Random.nextLong(windowMs)
 
+        // 若今天的时间窗口已过（或正好已触发），顺延到明天
         if (cal.timeInMillis <= System.currentTimeMillis()) {
             cal.add(Calendar.DAY_OF_MONTH, 1)
             cal.set(Calendar.HOUR_OF_DAY, hStart)
@@ -73,9 +74,24 @@ object AlarmScheduler {
             cal.timeInMillis += Random.nextLong(windowMs)
         }
 
+        // 跳过周末
         while (cal.get(Calendar.DAY_OF_WEEK) == Calendar.SATURDAY ||
                cal.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY) {
             cal.add(Calendar.DAY_OF_MONTH, 1)
+        }
+
+        // 保险：跳过周末后若时间仍在过去（极罕见），继续顺延到下一工作日
+        while (cal.timeInMillis <= System.currentTimeMillis()) {
+            cal.add(Calendar.DAY_OF_MONTH, 1)
+            cal.set(Calendar.HOUR_OF_DAY, hStart)
+            cal.set(Calendar.MINUTE, mStart)
+            cal.set(Calendar.SECOND, Random.nextInt(0, 60))
+            cal.set(Calendar.MILLISECOND, 0)
+            cal.timeInMillis += Random.nextLong(windowMs)
+            while (cal.get(Calendar.DAY_OF_WEEK) == Calendar.SATURDAY ||
+                   cal.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY) {
+                cal.add(Calendar.DAY_OF_MONTH, 1)
+            }
         }
 
         return cal.timeInMillis
