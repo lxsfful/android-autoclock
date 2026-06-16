@@ -69,10 +69,19 @@ class AutoClockService : AccessibilityService() {
         if (!isWaitingForSuccessPopup || hasTerminalResult || event == null) return
         if (lastWindowPackage != TARGET_APP_PACKAGE) return
 
+        // 主检测：TYPE_WINDOW_STATE_CHANGED = 云之家弹出了新窗口（打卡响应弹窗）
+        // 无论内容是"操作成功"还是心灵鸡汤，弹窗本身即代表打卡已被处理
+        if (ClockSuccessDetector.isClockResponseWindow(event)) {
+            Log.i(TAG, "检测到云之家打卡响应弹窗（窗口状态变化）")
+            completeSequence(success = true, reason = "检测到云之家打卡响应弹窗")
+            return
+        }
+
+        // 次级检测：文本匹配兜底（应对无窗口状态变化的特殊情况）
         val snapshot = event.toClockSnapshot(collectActiveWindowTexts())
         if (ClockSuccessDetector.isSuccessPopup(snapshot)) {
-            Log.i(TAG, "检测到云之家操作成功提示")
-            completeSequence(success = true, reason = "检测到云之家操作成功提示")
+            Log.i(TAG, "文本检测到云之家打卡响应")
+            completeSequence(success = true, reason = "文本检测到云之家打卡响应")
         }
     }
 
@@ -192,6 +201,7 @@ class AutoClockService : AccessibilityService() {
             contentDescription = null,
             eventType = 0
         )
+        // 轮询兜底：与事件检测保持一致——有内容且无失败关键词即视为成功
         return ClockSuccessDetector.isSuccessPopup(snapshot)
     }
 
