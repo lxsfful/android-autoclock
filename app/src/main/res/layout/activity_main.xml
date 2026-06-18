@@ -218,7 +218,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="第一次点击：打开任务 App（桌面快捷方式）"
+            android:text="第一次点击：桌面“云之家快捷打卡”快捷方式"
             android:textSize="13sp"
             android:textColor="@color/on_surface_secondary"
             android:layout_marginBottom="6dp"/>
@@ -227,7 +227,7 @@
             android:id="@+id/btnPickOpenCoords"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="从截图点选桌面快捷方式位置"
+            android:text="从截图点选快捷打卡位置"
             android:backgroundTint="@color/secondary"
             android:textColor="@color/on_secondary"
             android:layout_marginBottom="8dp"/>
@@ -272,7 +272,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="第二次点击：完成任务（任务按钮）"
+            android:text="第二次点击：快捷打卡界面内“打卡”按钮（保险点击）"
             android:textSize="13sp"
             android:textColor="@color/on_surface_secondary"
             android:layout_marginBottom="6dp"/>
@@ -281,7 +281,7 @@
             android:id="@+id/btnPickClockCoords"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="从截图点选任务按钮位置"
+            android:text="从截图点选界面内打卡按钮位置"
             android:backgroundTint="@color/secondary"
             android:textColor="@color/on_secondary"
             android:layout_marginBottom="8dp"/>
@@ -326,7 +326,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="第三次点击：任务完成回桌面后点击（后续 App等）"
+            android:text="第三次点击：向日葵兜底坐标（包名启动失败时使用）"
             android:textSize="13sp"
             android:textColor="@color/on_surface_secondary"
             android:layout_marginBottom="6dp"/>

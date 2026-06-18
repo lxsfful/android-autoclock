@@ -21,8 +21,8 @@ class ClockSuccessDetectorTest {
     }
 
     @Test
-    fun `ignores target app window without success text`() {
-        val snapshot = snapshot(texts = listOf("目标 App", "示例任务"))
+    fun `does not treat neutral target app text as successful response`() {
+        val snapshot = snapshot(texts = listOf("今天也要加油", "保持热爱"))
 
         assertFalse(ClockSuccessDetector.isSuccessPopup(snapshot))
     }
@@ -42,7 +42,15 @@ class ClockSuccessDetectorTest {
     }
 
     @Test
-    fun `detects success when stale failure text is elsewhere in target window`() {
+    fun `ignores unsuccessful response text`() {
+        val snapshot = snapshot(texts = listOf("打卡不成功", "请稍后重试"))
+
+        assertFalse(ClockSuccessDetector.isSuccessPopup(snapshot))
+        assertTrue(ClockSuccessDetector.isFailurePopup(snapshot))
+    }
+
+    @Test
+    fun `prefers explicit success over stale failure text in the same target window`() {
         val snapshot = snapshot(texts = listOf("上次任务失败", "操作成功"))
 
         assertTrue(ClockSuccessDetector.isSuccessPopup(snapshot))
@@ -81,6 +89,28 @@ class ClockSuccessDetectorTest {
         val snapshot = snapshot(packageName = null, texts = listOf("操作成功"))
 
         assertFalse(ClockSuccessDetector.isSuccessPopup(snapshot))
+    }
+
+    @Test
+    fun `does not treat neutral target content description as successful response`() {
+        val snapshot = snapshot(texts = emptyList(), contentDescription = "今天也要加油")
+
+        assertFalse(ClockSuccessDetector.isSuccessPopup(snapshot))
+    }
+
+    @Test
+    fun `detects target app window state changed event as clock response window`() {
+        assertTrue(ClockSuccessDetector.isClockResponseWindow(ClockSuccessDetector.CLOCK_APP_PACKAGE, 32))
+    }
+
+    @Test
+    fun `ignores target app non window state changed event as clock response window`() {
+        assertFalse(ClockSuccessDetector.isClockResponseWindow(ClockSuccessDetector.CLOCK_APP_PACKAGE, 2048))
+    }
+
+    @Test
+    fun `ignores non target package window state changed event as clock response window`() {
+        assertFalse(ClockSuccessDetector.isClockResponseWindow("com.android.launcher", 32))
     }
 
     private fun snapshot(

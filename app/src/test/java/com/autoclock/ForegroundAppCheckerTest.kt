@@ -46,6 +46,61 @@ class ForegroundAppCheckerTest {
         assertEquals(ForegroundAppChecker.NOT_FOREGROUND_REASON, decision.failureReason)
     }
 
+    @Test
+    fun `returns unreadable failure when no foreground observations were collected`() {
+        val decision = ForegroundAppChecker.evaluate(emptyList(), TARGET_PACKAGE)
+
+        assertFalse(decision.isTargetReady)
+        assertEquals(ForegroundAppChecker.UNREADABLE_REASON, decision.failureReason)
+    }
+
+    @Test
+    fun `returns unreadable failure when observations are null blank or whitespace only`() {
+        val decision = ForegroundAppChecker.evaluate(listOf(null, "", "   "), TARGET_PACKAGE)
+
+        assertFalse(decision.isTargetReady)
+        assertEquals(ForegroundAppChecker.UNREADABLE_REASON, decision.failureReason)
+    }
+
+    @Test
+    fun `returns ready when target package appears after unreadable and non target observations`() {
+        val decision = ForegroundAppChecker.evaluate(
+            listOf(null, "", "com.android.launcher", TARGET_PACKAGE),
+            TARGET_PACKAGE
+        )
+
+        assertTrue(decision.isTargetReady)
+        assertNull(decision.failureReason)
+    }
+
+    @Test
+    fun `returns not foreground failure when at least one readable non target package was observed`() {
+        val decision = ForegroundAppChecker.evaluate(listOf(null, "", "com.android.launcher"), TARGET_PACKAGE)
+
+        assertFalse(decision.isTargetReady)
+        assertEquals(ForegroundAppChecker.NOT_FOREGROUND_REASON, decision.failureReason)
+    }
+
+    @Test
+    fun `does not treat package prefix or suffix as target package`() {
+        val decision = ForegroundAppChecker.evaluate(
+            listOf("com.kdweibo.client.debug", "prefix.com.kdweibo.client"),
+            TARGET_PACKAGE
+        )
+
+        assertFalse(decision.isTargetReady)
+        assertEquals(ForegroundAppChecker.NOT_FOREGROUND_REASON, decision.failureReason)
+    }
+
+    @Test
+    fun `summarizes observed packages for diagnostics`() {
+        val summary = ForegroundAppChecker.observedPackagesSummary(
+            listOf(null, "", " com.android.launcher ", TARGET_PACKAGE)
+        )
+
+        assertEquals("unreadable -> unreadable -> launcher -> target", summary)
+    }
+
     private companion object {
         const val TARGET_PACKAGE = "com.kdweibo.client"
     }
