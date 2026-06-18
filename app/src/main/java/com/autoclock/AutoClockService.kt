@@ -56,12 +56,6 @@ class AutoClockService : AccessibilityService() {
         val error: String
     )
 
-    private enum class ClockResponseResult {
-        SUCCESS,
-        FAILURE,
-        UNKNOWN
-    }
-
     private val handler = Handler(Looper.getMainLooper())
     private var wakeLock: PowerManager.WakeLock? = null
     private var isSequenceRunning = false
@@ -94,21 +88,27 @@ class AutoClockService : AccessibilityService() {
         if (lastWindowPackage != TARGET_APP_PACKAGE) return
 
         val snapshot = event.toClockSnapshot(collectActiveWindowTexts())
-        if (ClockSuccessDetector.isFailurePopup(snapshot)) {
-            Log.w(TAG, "文本检测到云之家快捷打卡失败响应")
-            completeSequence(success = false, reason = failureReasonWithDiagnostics("检测到云之家快捷打卡失败响应"))
-            return
-        }
-
-        if (ClockSuccessDetector.isSuccessPopup(snapshot)) {
-            Log.i(TAG, "文本检测到云之家快捷打卡成功响应")
-            completeSequence(success = true, reason = "文本检测到云之家快捷打卡成功响应")
-            return
-        }
-
-        // TYPE_WINDOW_STATE_CHANGED 只代表可能出现响应窗口；未读到明确成功/失败文案时继续等待。
-        if (ClockSuccessDetector.isClockResponseWindow(event)) {
-            Log.i(TAG, "检测到云之家窗口变化，继续等待明确快捷打卡响应")
+        when (ClockSuccessDetector.detectResponse(snapshot)) {
+            ClockResponseDecision.SUCCESS -> {
+                val isResponseWindow = ClockSuccessDetector.isClockResponseWindow(snapshot.packageName, snapshot.eventType)
+                val reason = if (isResponseWindow) {
+                    "检测到云之家打卡响应弹窗"
+                } else {
+                    "文本检测到云之家快捷打卡成功响应"
+                }
+                val logMessage = if (isResponseWindow) {
+                    "检测到云之家打卡响应弹窗（窗口状态变化）"
+                } else {
+                    reason
+                }
+                Log.i(TAG, logMessage)
+                completeSequence(success = true, reason = reason)
+            }
+            ClockResponseDecision.FAILURE -> {
+                Log.w(TAG, "文本检测到云之家快捷打卡失败响应")
+                completeSequence(success = false, reason = failureReasonWithDiagnostics("检测到云之家快捷打卡失败响应"))
+            }
+            ClockResponseDecision.UNKNOWN -> Unit
         }
     }
 
@@ -217,17 +217,17 @@ class AutoClockService : AccessibilityService() {
             override fun run() {
                 if (!isWaitingForSuccessPopup || hasTerminalResult) return
                 when (detectResponseFromActiveWindow()) {
-                    ClockResponseResult.SUCCESS -> {
+                    ClockResponseDecision.SUCCESS -> {
                         Log.i(TAG, "轮询检测到云之家快捷打卡成功提示")
                         completeSequence(success = true, reason = "检测到云之家快捷打卡成功提示")
                         return
                     }
-                    ClockResponseResult.FAILURE -> {
+                    ClockResponseDecision.FAILURE -> {
                         Log.w(TAG, "轮询检测到云之家快捷打卡失败提示")
                         completeSequence(success = false, reason = failureReasonWithDiagnostics("检测到云之家快捷打卡失败提示"))
                         return
                     }
-                    ClockResponseResult.UNKNOWN -> Unit
+                    ClockResponseDecision.UNKNOWN -> Unit
                 }
                 handler.postDelayed(this, SUCCESS_POLL_INTERVAL_MS)
             }
@@ -246,9 +246,9 @@ class AutoClockService : AccessibilityService() {
         handler.postDelayed(timeout, SUCCESS_POPUP_TIMEOUT_MS)
     }
 
-    private fun detectResponseFromActiveWindow(): ClockResponseResult {
+    private fun detectResponseFromActiveWindow(): ClockResponseDecision {
         val texts = collectActiveWindowTexts()
-        if (texts.isEmpty()) return ClockResponseResult.UNKNOWN
+        if (texts.isEmpty()) return ClockResponseDecision.UNKNOWN
 
         val snapshot = ClockAccessibilitySnapshot(
             packageName = TARGET_APP_PACKAGE,
@@ -257,11 +257,7 @@ class AutoClockService : AccessibilityService() {
             contentDescription = null,
             eventType = 0
         )
-        return when {
-            ClockSuccessDetector.isFailurePopup(snapshot) -> ClockResponseResult.FAILURE
-            ClockSuccessDetector.isSuccessPopup(snapshot) -> ClockResponseResult.SUCCESS
-            else -> ClockResponseResult.UNKNOWN
-        }
+        return ClockSuccessDetector.detectResponse(snapshot)
     }
 
     private fun foregroundDiagnostic(result: ForegroundWaitResult, didRunSafetyTap: Boolean): String {
