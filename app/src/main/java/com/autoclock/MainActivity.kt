@@ -12,10 +12,12 @@ import androidx.appcompat.app.AppCompatActivity
 import com.autoclock.databinding.ActivityMainBinding
 import com.google.android.material.timepicker.MaterialTimePicker
 import com.google.android.material.timepicker.TimeFormat
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
 
 class MainActivity : AppCompatActivity() {
 
@@ -30,6 +32,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var prefs: Prefs
 
+    private val isStartingDiagnostic = AtomicBoolean(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
@@ -41,6 +45,7 @@ class MainActivity : AppCompatActivity() {
         setupCoordinateInputs()
         setupTimeSection()
         setupEmailSection()
+        setupDiagnosticSection()
     }
 
     override fun onResume() {
@@ -274,6 +279,95 @@ class MainActivity : AppCompatActivity() {
         toast("正在发送测试邮件…")
         EmailSender.sendTestEmail(this) { _, msg ->
             runOnUiThread { toast(msg) }
+        }
+    }
+
+    // ---- 诊断记录 -------------------------------------------------------
+
+    private fun setupDiagnosticSection() {
+        binding.btnStartDiagnostic.setOnClickListener {
+            if (!isAccessibilityEnabled()) {
+                toast("请先开启无障碍服务")
+                startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                return@setOnClickListener
+            }
+            val service = AutoClockService.instance
+            if (service == null) {
+                toast("无障碍服务未连接，请等待服务启动后重试")
+                return@setOnClickListener
+            }
+            if (isStartingDiagnostic.get()) {
+                toast("诊断正在启动中…")
+                return@setOnClickListener
+            }
+            // 3-2-1 countdown then start
+            binding.btnStartDiagnostic.isEnabled = false
+            binding.tvDiagnosticStatus.text = "即将开始诊断…"
+            countdownAndStart(service)
+        }
+
+        binding.btnStopDiagnostic.setOnClickListener {
+            val file = AutoClockService.instance?.stopDiagnosticRecording()
+            binding.btnStartDiagnostic.isEnabled = true
+            if (file != null) {
+                val name = file.name
+                toast("诊断已保存：$name")
+                binding.tvDiagnosticStatus.text = "诊断文件：$name"
+            } else {
+                binding.tvDiagnosticStatus.text = "（未在进行诊断）"
+            }
+        }
+
+        refreshDiagnosticStatus()
+    }
+
+    private fun countdownAndStart(service: AutoClockService) {
+        isStartingDiagnostic.set(true)
+        var count = 3
+        val runnable = object : Runnable {
+            override fun run() {
+                if (count > 0) {
+                    binding.tvDiagnosticStatus.text = "${count}…"
+                    count--
+                    binding.tvDiagnosticStatus.postDelayed(this, 1000)
+                } else {
+                    binding.tvDiagnosticStatus.text = "正在诊断…"
+                    val file = service.startDiagnosticRecording()
+                    if (file != null) {
+                        binding.tvDiagnosticStatus.text = "正在诊断：${file.name}"
+                        // Return to home so user can perform real workflow
+                        service.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME)
+                    } else {
+                        toast("诊断启动失败")
+                        binding.tvDiagnosticStatus.text = "（未在进行诊断）"
+                        binding.btnStartDiagnostic.isEnabled = true
+                    }
+                    isStartingDiagnostic.set(false)
+                }
+            }
+        }
+        binding.tvDiagnosticStatus.post(runnable)
+    }
+
+    private fun refreshDiagnosticStatus() {
+        val recording = AutoClockService.instance?.isDiagnosticRecording() == true
+        val latestFile = AutoClockService.instance?.latestDiagnosticFile()
+        if (recording) {
+            binding.tvDiagnosticStatus.text = if (latestFile != null) {
+                "正在诊断：${latestFile.name}"
+            } else {
+                "正在诊断…"
+            }
+            binding.btnStartDiagnostic.isEnabled = false
+            binding.btnStopDiagnostic.isEnabled = true
+        } else {
+            binding.tvDiagnosticStatus.text = if (latestFile != null) {
+                "上次诊断文件：${latestFile.name}"
+            } else {
+                "（未在进行诊断）"
+            }
+            binding.btnStartDiagnostic.isEnabled = true
+            binding.btnStopDiagnostic.isEnabled = true
         }
     }
 

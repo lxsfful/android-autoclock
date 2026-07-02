@@ -85,6 +85,17 @@ SMTP 通知为 best-effort：配置为空、网络异常或授权码失效时只
 3. 无明确文案时，目标包名的 Dialog/Popup/Toast 类 `TYPE_WINDOW_STATE_CHANGED` 事件视为响应弹窗出现 → 成功。
 4. 其他情况 → 继续等待，直到超时失败。
 
+## 诊断记录
+
+在"开始诊断"页面可录制完整无障碍事件日志，用于排查打卡失败原因。录制时：
+
+1. 确认已开启 AutoClock 无障碍服务。
+2. 点击"开始诊断"——3 秒倒计时后自动返回桌面。
+3. 手动完成一次真实的打卡操作（进入云之家 → 快捷打卡 → 观察结果）。
+4. 回到应用点击"停止诊断"。
+
+日志为本地私有 JSONL 文件，保存在 `filesDir/diagnostics/` 下，文件名含时间戳。日志内容仅包含无障碍事件、窗口节点快照及经过截断/脱敏（密码字段自动过滤）的文本，单文件最大 2 MB。**无任何网络捕获或上传行为。**
+
 ## 核心文件
 
 ```text
@@ -95,6 +106,7 @@ app/src/main/java/com/autoclock/
 ├── ClockSuccessDetector.kt    # 响应成功/失败/未知判定
 ├── ClockAttemptTracker.kt     # 每日早/晚窗口尝试次数上限
 ├── ChineseHolidayCalendar.kt  # 中国节假日静态表
+├── DiagnosticRecorder.kt      # 诊断记录：JSONL 写入、节点快照、脱敏
 ├── EmailSender.kt             # SMTP 发送
 ├── ClockEmailContent.kt       # 邮件内容
 ├── Prefs.kt                   # 设置、历史 JSON、加密邮件密码

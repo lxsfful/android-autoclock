@@ -13,6 +13,7 @@ import android.os.PowerManager
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import java.io.File
 
 class AutoClockService : AccessibilityService() {
 
@@ -86,8 +87,13 @@ class AutoClockService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         lastWindowPackage = event?.packageName?.toString()
         lastWindowClassName = event?.className?.toString()
-        if (!isWaitingForSuccessPopup || hasTerminalResult || event == null) return
+
+        // Record to diagnostic log if active — hot path, inline and lightweight
+        DiagnosticRecorder.recordEvent(this, event)
+
+        if (!isWaitingForSuccessPopup || hasTerminalResult) return
         if (lastWindowPackage != TARGET_APP_PACKAGE) return
+        if (event == null) return
 
         val snapshot = event.toClockSnapshot(collectActiveWindowTexts())
         when (ClockSuccessDetector.detectResponse(snapshot)) {
@@ -125,6 +131,38 @@ class AutoClockService : AccessibilityService() {
      *  5. 等待目标 App 响应弹窗/文本
      *  6. 无论成功或失败，最后都回桌面、结束云之家并打开向日葵
      */
+    // -------------------------------------------------------------------------
+    // Diagnostic recording API
+    // -------------------------------------------------------------------------
+
+    /**
+     * Starts diagnostic recording.
+     * Requires the accessibility service to be connected.
+     * Returns the output file path, or null on failure.
+     */
+    fun startDiagnosticRecording(): File? {
+        return DiagnosticRecorder.startRecording(this)
+    }
+
+    /**
+     * Stops diagnostic recording and returns the final output file.
+     */
+    fun stopDiagnosticRecording(): File? {
+        return DiagnosticRecorder.stopRecording()
+    }
+
+    fun isDiagnosticRecording(): Boolean {
+        return DiagnosticRecorder.isRecording()
+    }
+
+    fun latestDiagnosticFile(): File? {
+        return DiagnosticRecorder.latestDiagnosticFile()
+    }
+
+    // -------------------------------------------------------------------------
+    // Clock sequence
+    // -------------------------------------------------------------------------
+
     fun performClockSequence(isClockIn: Boolean, scheduleAfterCompletion: Boolean = false) {
         if (isSequenceRunning) {
             Log.w(TAG, SEQUENCE_BUSY_REASON)
