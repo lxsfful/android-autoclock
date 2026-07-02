@@ -128,7 +128,7 @@ object EmailSender {
     }
 
     private fun logEmailFailure(message: String, error: Exception) {
-        Log.e(TAG, "$message: ${error.javaClass.simpleName}")
+        Log.e(TAG, "$message: ${error.javaClass.simpleName}: ${error.message}", error)
     }
 
     private fun effectiveRecipient(prefs: Prefs): String {

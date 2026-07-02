@@ -80,6 +80,17 @@ class ClockSuccessDetectorTest {
     }
 
     @Test
+    fun `does not treat available clock range text as success before tapping`() {
+        val snapshot = snapshot(
+            className = TargetApps.SMART_ATTEND_ACTIVITY,
+            texts = listOf("下班1", "18:00", "打卡时间范围 13:31-次日04:59"),
+            eventType = CONTENT_CHANGED_EVENT
+        )
+
+        assertEquals(ClockResponseDecision.UNKNOWN, ClockSuccessDetector.detectResponse(snapshot))
+    }
+
+    @Test
     fun `does not treat target app window state change as explicit text success`() {
         val snapshot = snapshot(texts = emptyList(), eventType = WINDOW_STATE_CHANGED_EVENT)
 

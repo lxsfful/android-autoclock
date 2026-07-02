@@ -71,6 +71,7 @@ class AutoClockService : AccessibilityService() {
     private var lastWindowClassName: String? = null
     private var foregroundDiagnostic: String? = null
     private var hasCompletedSafetyTap = false
+    private var autoDiagnosticStartedForSequence = false
 
     override fun onServiceConnected() {
         instance = this
@@ -186,6 +187,7 @@ class AutoClockService : AccessibilityService() {
         lastWindowClassName = null
         foregroundDiagnostic = null
         hasCompletedSafetyTap = false
+        startSequenceDiagnostic(isClockIn)
 
         val prefs = Prefs(this)
         val waitSeconds = prefs.waitSeconds.coerceIn(MIN_WAIT_SECONDS, MAX_WAIT_SECONDS)
@@ -333,6 +335,12 @@ class AutoClockService : AccessibilityService() {
         EmailSender.sendClockResultEmail(this, success, reason)
         recordClockAttempt(success, reason)
         scheduleAfterTerminalResult(success)
+        DiagnosticRecorder.recordMarker(
+            name = "clock_sequence_terminal_result",
+            isClockIn = currentIsClockIn,
+            success = success,
+            reason = reason
+        )
 
         if (runPostSequence) {
             // 打卡完成后，延迟执行后续操作
@@ -431,6 +439,40 @@ class AutoClockService : AccessibilityService() {
             val prefs = Prefs(appContext)
             prefs.clockHistoryJson = ClockHistory.append(prefs.clockHistoryJson, record)
         }.start()
+    }
+
+    private fun startSequenceDiagnostic(isClockIn: Boolean) {
+        if (DiagnosticRecorder.isRecording()) {
+            autoDiagnosticStartedForSequence = false
+            DiagnosticRecorder.recordMarker(
+                name = "clock_sequence_start",
+                isClockIn = isClockIn,
+                reason = "manual_or_existing_diagnostic"
+            )
+            return
+        }
+
+        autoDiagnosticStartedForSequence = DiagnosticRecorder.startRecording(this) != null
+        if (autoDiagnosticStartedForSequence) {
+            DiagnosticRecorder.recordMarker(
+                name = "clock_sequence_start",
+                isClockIn = isClockIn,
+                reason = "auto_started_by_clock_sequence"
+            )
+        }
+    }
+
+    private fun finishSequenceDiagnostic() {
+        if (!isSequenceRunning && !autoDiagnosticStartedForSequence) return
+
+        DiagnosticRecorder.recordMarker(
+            name = "clock_sequence_stop",
+            isClockIn = currentIsClockIn
+        )
+        if (autoDiagnosticStartedForSequence) {
+            DiagnosticRecorder.stopRecording()
+        }
+        autoDiagnosticStartedForSequence = false
     }
 
 
@@ -601,6 +643,7 @@ class AutoClockService : AccessibilityService() {
     }
 
     private fun releaseWakeLock() {
+        finishSequenceDiagnostic()
         if (wakeLock?.isHeld == true) {
             wakeLock?.release()
         }

@@ -43,6 +43,36 @@ object DiagnosticRecorder {
 
     fun latestDiagnosticFile(): File? = outputFile
 
+    fun recordMarker(
+        name: String,
+        isClockIn: Boolean? = null,
+        success: Boolean? = null,
+        reason: String? = null
+    ) {
+        if (!recording) return
+
+        val now = System.currentTimeMillis()
+        val json = JSONObject()
+            .put("type", "marker")
+            .put("name", name)
+            .put("sessionId", sessionId)
+            .put("timestampMs", now)
+            .put("elapsedMs", now - sessionStartMs)
+        if (isClockIn != null) json.put("isClockIn", isClockIn)
+        if (success != null) json.put("success", success)
+        putOptional(json, "reason", reason?.let(::safeString))
+
+        synchronized(this) {
+            if (!recording) return
+            runCatching {
+                writeLineLocked(json)
+                writer?.flush()
+            }.onFailure { e ->
+                Log.w(TAG, "Failed to write diagnostic marker", e)
+            }
+        }
+    }
+
     @Synchronized
     fun startRecording(service: AccessibilityService): File? {
         if (recording) return outputFile
