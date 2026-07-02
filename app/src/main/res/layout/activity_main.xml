@@ -411,7 +411,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="任务失败邮件通知"
+            android:text="任务结果邮件通知"
             android:textSize="15sp"
             android:textStyle="bold"
             android:textColor="@color/on_surface"
@@ -420,7 +420,7 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="任务失败时静默发送邮件提醒"
+            android:text="每次任务确认成功或未确认时都会静默发送邮件"
             android:textSize="13sp"
             android:textColor="@color/on_surface_secondary"
             android:layout_marginBottom="10dp"/>

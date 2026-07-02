@@ -96,11 +96,11 @@ class MainActivity : AppCompatActivity() {
         }
         binding.btnTestIn.setOnClickListener {
             AutoClockService.instance?.performClockSequence(true)
-                ?: toast("无障碍服务未运行，请在系统设置中开启")
+                ?: notifyMissingAccessibilityService()
         }
         binding.btnTestOut.setOnClickListener {
             AutoClockService.instance?.performClockSequence(false)
-                ?: toast("无障碍服务未运行，请在系统设置中开启")
+                ?: notifyMissingAccessibilityService()
         }
         binding.btnPickOpenCoords.setOnClickListener {
             openCoordinatePicker(CoordinatePickerActivity.TARGET_OPEN_APP)
@@ -112,6 +112,11 @@ class MainActivity : AppCompatActivity() {
             openCoordinatePicker(CoordinatePickerActivity.TARGET_AFTER_CLOCK)
         }
         binding.btnSaveCoords.setOnClickListener { saveCoordinates() }
+    }
+
+    private fun notifyMissingAccessibilityService() {
+        EmailSender.sendFailureEmail(this, AlarmReceiver.SERVICE_NOT_RUNNING_REASON)
+        toast("无障碍服务未运行，已发送邮件提醒")
     }
 
     private fun openCoordinatePicker(target: String) {

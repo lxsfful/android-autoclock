@@ -18,35 +18,29 @@ object EmailSender {
     private const val SMTP_TIMEOUT_MS = "15000"
     private val executor = Executors.newSingleThreadExecutor()
 
-    fun sendSuccessEmail(context: Context) {
+    fun sendClockResultEmail(context: Context, success: Boolean, reason: String = "") {
+        if (!success) {
+            Log.w(TAG, "任务不成功，准备发送提醒邮件: $reason")
+        }
         val prefs = Prefs(context)
-        val subject = ClockEmailContent.successSubject(
-            ClockEmailContent.formatClockTime(System.currentTimeMillis())
-        )
+        val timeText = ClockEmailContent.formatClockTime(System.currentTimeMillis())
         sendAsync(
             host      = prefs.emailSmtpHost,
             port      = prefs.emailSmtpPort,
             sender    = prefs.emailSender,
             password  = prefs.emailPassword,
             recipient = effectiveRecipient(prefs),
-            subject   = subject,
-            body      = subject
+            subject   = ClockEmailContent.resultSubject(success, timeText),
+            body      = ClockEmailContent.resultBody(success, reason, timeText)
         )
     }
 
-    @Suppress("UNUSED_PARAMETER")
+    fun sendSuccessEmail(context: Context) {
+        sendClockResultEmail(context, success = true)
+    }
+
     fun sendFailureEmail(context: Context, reason: String) {
-        Log.w(TAG, "任务不成功，准备发送提醒邮件")
-        val prefs = Prefs(context)
-        sendAsync(
-            host      = prefs.emailSmtpHost,
-            port      = prefs.emailSmtpPort,
-            sender    = prefs.emailSender,
-            password  = prefs.emailPassword,
-            recipient = effectiveRecipient(prefs),
-            subject   = ClockEmailContent.FAILURE_MESSAGE,
-            body      = ClockEmailContent.FAILURE_MESSAGE
-        )
+        sendClockResultEmail(context, success = false, reason = reason)
     }
 
     fun sendTestEmail(context: Context, onResult: (success: Boolean, msg: String) -> Unit) {

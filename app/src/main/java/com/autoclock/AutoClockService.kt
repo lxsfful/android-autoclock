@@ -31,6 +31,7 @@ class AutoClockService : AccessibilityService() {
         private const val MAX_COLLECTED_NODE_TEXTS = 80
         private const val MAX_FAILURE_REASON_CHARS = 500
         private const val LOCKED_DEVICE_REASON = "设备处于锁屏状态，无法点击桌面快捷方式"
+        private const val SEQUENCE_BUSY_REASON = "已有任务序列正在执行，本次触发未执行，请手动检查"
 
         // 打卡完成后额外操作的延迟
         private const val POST_CLOCK_DELAY_MS = 3_000L
@@ -62,6 +63,7 @@ class AutoClockService : AccessibilityService() {
     private var isWaitingForSuccessPopup = false
     private var hasTerminalResult = false
     private var currentIsClockIn = true
+    private var scheduleAfterCompletion = false
     private var successPopupTimeoutRunnable: Runnable? = null
     private var successPopupPollRunnable: Runnable? = null
     private var lastWindowPackage: String? = null
@@ -123,15 +125,21 @@ class AutoClockService : AccessibilityService() {
      *  5. 等待目标 App 响应弹窗/文本
      *  6. 无论成功或失败，最后都回桌面、结束云之家并打开向日葵
      */
-    fun performClockSequence(isClockIn: Boolean) {
+    fun performClockSequence(isClockIn: Boolean, scheduleAfterCompletion: Boolean = false) {
         if (isSequenceRunning) {
-            Log.w(TAG, "已有任务序列正在执行，忽略本次触发")
+            Log.w(TAG, SEQUENCE_BUSY_REASON)
+            EmailSender.sendClockResultEmail(this, success = false, reason = SEQUENCE_BUSY_REASON)
+            recordClockAttempt(success = false, reason = SEQUENCE_BUSY_REASON, isClockIn = isClockIn)
+            if (scheduleAfterCompletion) {
+                AlarmScheduler.scheduleRetryOrNext(this, isClockIn)
+            }
             return
         }
 
         Log.i(TAG, "开始任务序列: ${if (isClockIn) "开始" else "结束"}")
         isSequenceRunning = true
         currentIsClockIn = isClockIn
+        this.scheduleAfterCompletion = scheduleAfterCompletion
         isWaitingForSuccessPopup = false
         hasTerminalResult = false
         successPopupTimeoutRunnable = null
@@ -284,12 +292,9 @@ class AutoClockService : AccessibilityService() {
         successPopupTimeoutRunnable = null
         successPopupPollRunnable = null
 
-        if (success) {
-            EmailSender.sendSuccessEmail(this)
-        } else {
-            EmailSender.sendFailureEmail(this, reason)
-        }
+        EmailSender.sendClockResultEmail(this, success, reason)
         recordClockAttempt(success, reason)
+        scheduleAfterTerminalResult(success)
 
         if (runPostSequence) {
             // 打卡完成后，延迟执行后续操作
@@ -299,6 +304,15 @@ class AutoClockService : AccessibilityService() {
         }
     }
     
+    private fun scheduleAfterTerminalResult(success: Boolean) {
+        if (!scheduleAfterCompletion) return
+        if (success) {
+            AlarmScheduler.scheduleNext(this, currentIsClockIn)
+        } else {
+            AlarmScheduler.scheduleRetryOrNext(this, currentIsClockIn)
+        }
+    }
+
     /**
      * 打卡完成后的操作序列：
      * 1. 返回桌面
@@ -367,11 +381,11 @@ class AutoClockService : AccessibilityService() {
         }
     }
 
-    private fun recordClockAttempt(success: Boolean, reason: String) {
+    private fun recordClockAttempt(success: Boolean, reason: String, isClockIn: Boolean = currentIsClockIn) {
         val appContext = applicationContext
         val record = ClockRecord(
             timestampMs = System.currentTimeMillis(),
-            isClockIn = currentIsClockIn,
+            isClockIn = isClockIn,
             success = success,
             reason = if (success) "" else reason
         )
@@ -555,6 +569,7 @@ class AutoClockService : AccessibilityService() {
         wakeLock = null
         isSequenceRunning = false
         currentIsClockIn = true
+        scheduleAfterCompletion = false
         isWaitingForSuccessPopup = false
         hasTerminalResult = false
         successPopupTimeoutRunnable = null

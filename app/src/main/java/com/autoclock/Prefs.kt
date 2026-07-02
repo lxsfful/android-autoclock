@@ -105,6 +105,23 @@ class Prefs(context: Context) {
         get() = sp.getLong("next_co_time", 0L)
         set(v) = sp.edit().putLong("next_co_time", v).apply()
 
+    // ---- 每日尝试次数（用于同一早/晚窗口最多两次） ----
+    var clockInAttemptDate: String
+        get() = sp.getString("ci_attempt_date", "") ?: ""
+        set(v) = sp.edit().putString("ci_attempt_date", v).apply()
+
+    var clockInAttemptCount: Int
+        get() = sp.getInt("ci_attempt_count", 0)
+        set(v) = sp.edit().putInt("ci_attempt_count", v).apply()
+
+    var clockOutAttemptDate: String
+        get() = sp.getString("co_attempt_date", "") ?: ""
+        set(v) = sp.edit().putString("co_attempt_date", v).apply()
+
+    var clockOutAttemptCount: Int
+        get() = sp.getInt("co_attempt_count", 0)
+        set(v) = sp.edit().putInt("co_attempt_count", v).apply()
+
     // ---- 任务历史记录 ----
     var clockHistoryJson: String
         get() = sp.getString("clock_history_json", "") ?: ""
